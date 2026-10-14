@@ -221,11 +221,21 @@ td strong { color: #334b40; font-weight: 600; }
 .stack-form { gap: 13px; }
 .stack-form input, .stack-form textarea, .stack-form select { font-size: 11px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.form-actions, .item-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.form-actions form, .item-actions form { margin: 0; }
+.button-small { min-height: 27px; gap: 5px; padding: 0 8px; font-size: 9px; }
+.coordinate-tools { display: grid; justify-items: start; gap: 8px; }
+.coordinate-tools .button { margin: 0; }
+.map-help { margin: -4px 0; color: #89968f; font-size: 10px; line-height: 1.5; }
+.place-picker-map { width: 100%; height: 280px; z-index: 0; border: 1px solid #dfe7e2; border-radius: 5px; background: #f2f5f3; }
+.place-picker-map.map-unavailable { display: grid; place-items: center; padding: 18px; color: #74837a; font-size: 11px; line-height: 1.6; text-align: center; }
 .form-panel .button { margin-top: 3px; justify-self: start; }
 .list-panel { min-width: 0; padding: 20px; }
 .list-panel .panel-heading { margin-bottom: 15px; }
 .empty-state { padding: 24px 12px; color: #96a29b; font-size: 11px; line-height: 1.65; text-align: center; }
 .location-item { display: flex; gap: 12px; padding: 15px 0; border-top: 1px solid #eff2f0; }
+.location-details { min-width: 0; flex: 1; }
+.location-details .item-actions { margin-top: 10px; }
 .location-pin { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 5px; background: #eaf4ec; color: #39825d; font-size: 18px; }
 .location-item strong { font-size: 11px; }
 .location-item p { margin: 5px 0; color: #819087; font-size: 10px; line-height: 1.5; }

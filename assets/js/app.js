@@ -92,6 +92,73 @@ document.addEventListener('DOMContentLoaded', () => {
     updateClock();
     window.setInterval(updateClock, 1000);
 
+    const placeForm = document.querySelector('[data-place-form]');
+    const placeMapElement = document.querySelector('[data-place-picker-map]');
+    if (placeForm && placeMapElement) {
+        const latitudeInput = placeForm.querySelector('[data-coordinate-latitude]');
+        const longitudeInput = placeForm.querySelector('[data-coordinate-longitude]');
+        const feedback = placeForm.querySelector('[data-coordinate-feedback]');
+        let marker = null;
+        let map = null;
+        if (window.L) {
+            map = window.L.map(placeMapElement).setView([-2.5, 118], 5);
+            window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+            }).addTo(map);
+            const initialLatitude = Number(latitudeInput.value);
+            const initialLongitude = Number(longitudeInput.value);
+            if (latitudeInput.value !== '' && longitudeInput.value !== ''
+                && Number.isFinite(initialLatitude) && Number.isFinite(initialLongitude)) {
+                marker = window.L.marker([initialLatitude, initialLongitude]).addTo(map);
+                map.setView([initialLatitude, initialLongitude], 15);
+            }
+            map.on('click', (event) => {
+                const { lat, lng } = event.latlng;
+                latitudeInput.value = lat.toFixed(7);
+                longitudeInput.value = lng.toFixed(7);
+                if (marker) marker.setLatLng(event.latlng);
+                else marker = window.L.marker(event.latlng).addTo(map);
+                feedback.textContent = 'Titik peta dipilih. Periksa koordinat sebelum menyimpan.';
+            });
+            window.setTimeout(() => map.invalidateSize(), 0);
+        } else {
+            placeMapElement.textContent = 'Peta tidak dapat dimuat. Anda tetap dapat memasukkan koordinat secara manual atau memakai lokasi perangkat.';
+            placeMapElement.classList.add('map-unavailable');
+        }
+
+        placeForm.querySelector('[data-get-device-location]')?.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                feedback.textContent = 'Browser ini tidak mendukung pembacaan lokasi.';
+                return;
+            }
+            const button = placeForm.querySelector('[data-get-device-location]');
+            button.disabled = true;
+            feedback.textContent = 'Meminta lokasi perangkat… Izinkan akses lokasi di browser.';
+            navigator.geolocation.getCurrentPosition((position) => {
+                const { latitude, longitude, accuracy } = position.coords;
+                latitudeInput.value = latitude.toFixed(7);
+                longitudeInput.value = longitude.toFixed(7);
+                if (map) {
+                    const location = [latitude, longitude];
+                    map.setView(location, 17);
+                    if (marker) marker.setLatLng(location);
+                    else marker = window.L.marker(location).addTo(map);
+                }
+                feedback.textContent = `Lokasi perangkat terisi (akurasi sekitar ${Math.round(accuracy)} m). Pastikan titiknya sesuai sebelum menyimpan.`;
+                button.disabled = false;
+            }, (error) => {
+                const messages = {
+                    1: 'Izin lokasi ditolak. Aktifkan izin lokasi di browser lalu coba lagi.',
+                    2: 'Lokasi tidak tersedia. Aktifkan GPS atau pilih titik di peta.',
+                    3: 'Pembacaan lokasi terlalu lama. Coba lagi atau pilih titik di peta.',
+                };
+                feedback.textContent = messages[error.code] || 'Lokasi tidak dapat dibaca.';
+                button.disabled = false;
+            }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+        });
+    }
+
     document.querySelectorAll('[data-geolocation-form]').forEach((form) => {
         form.addEventListener('submit', (event) => {
             const latitude = form.querySelector('[name="latitude"]');

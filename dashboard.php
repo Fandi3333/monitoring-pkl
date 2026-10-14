@@ -72,6 +72,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(dashboard_url('places'));
         }
 
+        if ($action === 'update_place' && $role === 'admin') {
+            $placeId = filter_var($_POST['place_id'] ?? null, FILTER_VALIDATE_INT);
+            $name = trim((string) ($_POST['nama_industri'] ?? ''));
+            $address = trim((string) ($_POST['alamat'] ?? ''));
+            $latitude = filter_var($_POST['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
+            $longitude = filter_var($_POST['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
+            $radius = filter_var($_POST['radius_meter'] ?? 100, FILTER_VALIDATE_INT);
+            if (!$placeId || $name === '' || $address === '' || $latitude === false || $latitude < -90 || $latitude > 90 || $longitude === false || $longitude < -180 || $longitude > 180 || $radius === false || $radius < 1 || $radius > 5000) {
+                throw new DomainException('Data tempat PKL tidak valid. Periksa koordinat dan radius.');
+            }
+            $statement = $pdo->prepare('SELECT id FROM tempat_pkl WHERE id = ?');
+            $statement->execute([$placeId]);
+            if (!$statement->fetchColumn()) {
+                throw new DomainException('Tempat PKL tidak ditemukan.');
+            }
+            $statement = $pdo->prepare('UPDATE tempat_pkl SET nama_industri = ?, alamat = ?, latitude = ?, longitude = ?, radius_meter = ? WHERE id = ?');
+            $statement->execute([$name, $address, $latitude, $longitude, $radius, $placeId]);
+            flash($statement->rowCount() ? 'success' : 'warning', $statement->rowCount() ? 'Tempat PKL berhasil diperbarui.' : 'Tidak ada perubahan pada tempat PKL.');
+            redirect(dashboard_url('places'));
+        }
+
+        if ($action === 'delete_place' && $role === 'admin') {
+            $placeId = filter_var($_POST['place_id'] ?? null, FILTER_VALIDATE_INT);
+            if (!$placeId) {
+                throw new DomainException('Tempat PKL tidak valid.');
+            }
+            $statement = $pdo->prepare('SELECT COUNT(*) FROM kelas_pkl WHERE tempat_pkl_id = ?');
+            $statement->execute([$placeId]);
+            if ((int) $statement->fetchColumn() > 0) {
+                throw new DomainException('Tempat PKL tidak dapat dihapus karena masih digunakan oleh kelas. Ubah tempat pada kelas terkait terlebih dahulu.');
+            }
+            $statement = $pdo->prepare('DELETE FROM tempat_pkl WHERE id = ?');
+            $statement->execute([$placeId]);
+            flash($statement->rowCount() ? 'success' : 'danger', $statement->rowCount() ? 'Tempat PKL berhasil dihapus.' : 'Tempat PKL tidak ditemukan.');
+            redirect(dashboard_url('places'));
+        }
+
         if ($action === 'create_class' && $role === 'admin') {
             $name = trim((string) ($_POST['nama_kelas'] ?? ''));
             $code = strtoupper(trim((string) ($_POST['kode_kelas'] ?? '')));
@@ -84,6 +121,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $statement = $pdo->prepare('INSERT INTO kelas_pkl (nama_kelas, kode_kelas, tempat_pkl_id, kuota_guru, kuota_siswa) VALUES (?, ?, ?, ?, ?)');
             $statement->execute([$name, $code, $placeId, $teacherQuota, $studentQuota]);
             flash('success', 'Kelas PKL berhasil dibuat. Kode kelas: ' . $code);
+            redirect(dashboard_url('classes'));
+        }
+
+        if ($action === 'update_class' && $role === 'admin') {
+            $classId = filter_var($_POST['class_id'] ?? null, FILTER_VALIDATE_INT);
+            $name = trim((string) ($_POST['nama_kelas'] ?? ''));
+            $code = strtoupper(trim((string) ($_POST['kode_kelas'] ?? '')));
+            $placeId = filter_var($_POST['tempat_pkl_id'] ?? null, FILTER_VALIDATE_INT);
+            $teacherQuota = filter_var($_POST['kuota_guru'] ?? null, FILTER_VALIDATE_INT);
+            $studentQuota = filter_var($_POST['kuota_siswa'] ?? null, FILTER_VALIDATE_INT);
+            if (!$classId || $name === '' || !preg_match('/^[A-Z0-9-]{3,40}$/', $code) || !$placeId || $teacherQuota === false || $teacherQuota < 1 || $teacherQuota > 10 || $studentQuota === false || $studentQuota < 1 || $studentQuota > 500) {
+                throw new DomainException('Lengkapi data kelas. Kode hanya boleh berisi huruf, angka, dan tanda hubung.');
+            }
+            $statement = $pdo->prepare('SELECT id FROM kelas_pkl WHERE id = ?');
+            $statement->execute([$classId]);
+            if (!$statement->fetchColumn()) {
+                throw new DomainException('Kelas PKL tidak ditemukan.');
+            }
+            $statement = $pdo->prepare('SELECT id FROM tempat_pkl WHERE id = ?');
+            $statement->execute([$placeId]);
+            if (!$statement->fetchColumn()) {
+                throw new DomainException('Tempat PKL yang dipilih tidak ditemukan.');
+            }
+            $statement = $pdo->prepare("SELECT SUM(role = 'guru' AND aktif = 1) AS guru_aktif, SUM(role = 'siswa' AND aktif = 1) AS siswa_aktif FROM users WHERE kelas_id = ?");
+            $statement->execute([$classId]);
+            $members = $statement->fetch();
+            if ($teacherQuota < (int) ($members['guru_aktif'] ?? 0) || $studentQuota < (int) ($members['siswa_aktif'] ?? 0)) {
+                throw new DomainException('Kuota tidak boleh lebih kecil dari jumlah guru atau siswa aktif di kelas ini.');
+            }
+            $statement = $pdo->prepare('UPDATE kelas_pkl SET nama_kelas = ?, kode_kelas = ?, tempat_pkl_id = ?, kuota_guru = ?, kuota_siswa = ? WHERE id = ?');
+            $statement->execute([$name, $code, $placeId, $teacherQuota, $studentQuota, $classId]);
+            flash($statement->rowCount() ? 'success' : 'warning', $statement->rowCount() ? 'Data kelas PKL berhasil diperbarui.' : 'Tidak ada perubahan pada kelas PKL.');
+            redirect(dashboard_url('classes'));
+        }
+
+        if ($action === 'delete_class' && $role === 'admin') {
+            $classId = filter_var($_POST['class_id'] ?? null, FILTER_VALIDATE_INT);
+            if (!$classId) {
+                throw new DomainException('Kelas PKL tidak valid.');
+            }
+            $statement = $pdo->prepare('DELETE FROM kelas_pkl WHERE id = ?');
+            $statement->execute([$classId]);
+            flash($statement->rowCount() ? 'success' : 'danger', $statement->rowCount() ? 'Kelas PKL berhasil dihapus. Akun anggota tetap ada, tetapi tidak lagi terhubung ke kelas; presensi dan logbook kelas ikut terhapus.' : 'Kelas PKL tidak ditemukan.');
             redirect(dashboard_url('classes'));
         }
 
@@ -297,6 +377,24 @@ if ($view === 'places' && $role === 'admin') {
 } elseif ($view === 'reports') {
     $dataRows = $pdo->query("SELECT k.kode_kelas, u.nama AS nama_siswa, u.username, p.tanggal, p.jam, p.jarak_meter, p.status AS presensi_status, l.status AS logbook_status, l.nilai FROM users u JOIN kelas_pkl k ON k.id = u.kelas_id LEFT JOIN presensi p ON p.siswa_id = u.id LEFT JOIN logbook l ON l.siswa_id = u.id AND l.tanggal = p.tanggal WHERE u.role = 'siswa' ORDER BY p.tanggal DESC, k.kode_kelas, u.nama LIMIT 300")->fetchAll();
 }
+$editPlace = null;
+if ($view === 'places' && $role === 'admin' && isset($_GET['edit'])) {
+    $editId = filter_var($_GET['edit'], FILTER_VALIDATE_INT);
+    if ($editId) {
+        $statement = $pdo->prepare('SELECT * FROM tempat_pkl WHERE id = ?');
+        $statement->execute([$editId]);
+        $editPlace = $statement->fetch() ?: null;
+    }
+}
+$editClass = null;
+if ($view === 'classes' && $role === 'admin' && isset($_GET['edit'])) {
+    $editId = filter_var($_GET['edit'], FILTER_VALIDATE_INT);
+    if ($editId) {
+        $statement = $pdo->prepare('SELECT * FROM kelas_pkl WHERE id = ?');
+        $statement->execute([$editId]);
+        $editClass = $statement->fetch() ?: null;
+    }
+}
 $recentRows = [];
 if ($view === 'overview') {
     if ($role === 'admin') {
@@ -319,6 +417,10 @@ if ($view === 'overview') {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($pageTitle) ?> | <?= e(APP_NAME) ?></title>
     <link rel="stylesheet" href="assets/css/app.css">
+    <?php if ($view === 'places' && $role === 'admin'): ?>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+    <?php endif; ?>
     <script src="assets/js/app.js" defer></script>
 </head>
 <body class="app-page">
@@ -361,9 +463,64 @@ if ($view === 'overview') {
                 </tbody></table></div></section>
             <?php endif; ?>
 
-            <?php if ($view === 'places' && $role === 'admin'): ?><section class="workspace-grid"><div class="form-panel"><div class="panel-heading"><span class="eyebrow">LOKASI PKL</span><h2>Tambah tempat industri</h2><p>Koordinat menjadi titik acuan validasi radius presensi.</p></div><form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="create_place"><label>Nama bengkel / industri<input name="nama_industri" required maxlength="150" placeholder="Contoh: Bengkel Sejahtera Motor"></label><label>Alamat<textarea name="alamat" rows="3" required></textarea></label><div class="form-row"><label>Latitude<input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="-6.200000"></label><label>Longitude<input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="106.816666"></label></div><label>Radius geofence (meter)<input name="radius_meter" type="number" min="1" max="5000" value="100" required></label><button class="button button-primary" type="submit">Simpan tempat <span>→</span></button></form></div><div class="list-panel"><div class="panel-heading"><span class="eyebrow">DAFTAR LOKASI</span><h2><?= count($dataRows) ?> tempat PKL</h2></div><?php if (!$dataRows): ?><div class="empty-state">Belum ada tempat. Tambahkan lokasi pertama di formulir.</div><?php endif; ?><?php foreach ($dataRows as $place): ?><article class="location-item"><span class="location-pin">⌖</span><div><strong><?= e($place['nama_industri']) ?></strong><p><?= e($place['alamat']) ?></p><small><?= e($place['latitude']) ?>, <?= e($place['longitude']) ?> <span class="dot-separator">·</span> radius <?= e($place['radius_meter']) ?> m</small></div></article><?php endforeach; ?></div></section><?php endif; ?>
+            <?php if ($view === 'places' && $role === 'admin'): ?>
+                <section class="workspace-grid">
+                    <div class="form-panel">
+                        <div class="panel-heading"><span class="eyebrow">LOKASI PKL</span><h2><?= $editPlace ? 'Edit tempat industri' : 'Tambah tempat industri' ?></h2><p>Koordinat menjadi titik acuan validasi radius presensi.</p></div>
+                        <form method="post" class="stack-form" data-place-form>
+                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                            <input type="hidden" name="action" value="<?= $editPlace ? 'update_place' : 'create_place' ?>">
+                            <?php if ($editPlace): ?><input type="hidden" name="place_id" value="<?= e($editPlace['id']) ?>"><?php endif; ?>
+                            <label>Nama bengkel / industri<input name="nama_industri" required maxlength="150" placeholder="Contoh: Bengkel Sejahtera Motor" value="<?= e($editPlace['nama_industri'] ?? '') ?>"></label>
+                            <label>Alamat<textarea name="alamat" rows="3" required><?= e($editPlace['alamat'] ?? '') ?></textarea></label>
+                            <div class="coordinate-tools">
+                                <button class="button button-outline" type="button" data-get-device-location>Gunakan lokasi perangkat</button>
+                                <span class="form-feedback" data-coordinate-feedback aria-live="polite">Pilih titik pada peta atau isi koordinat secara manual.</span>
+                            </div>
+                            <div class="form-row">
+                                <label>Latitude<input name="latitude" type="number" step="any" min="-90" max="90" required placeholder="-6.200000" data-coordinate-latitude value="<?= e($editPlace['latitude'] ?? '') ?>"></label>
+                                <label>Longitude<input name="longitude" type="number" step="any" min="-180" max="180" required placeholder="106.816666" data-coordinate-longitude value="<?= e($editPlace['longitude'] ?? '') ?>"></label>
+                            </div>
+                            <p class="map-help">Klik peta untuk menentukan titik lokasi. GPS memerlukan izin lokasi browser.</p>
+                            <div class="place-picker-map" data-place-picker-map role="application" aria-label="Peta pemilihan koordinat tempat PKL"></div>
+                            <label>Radius geofence (meter)<input name="radius_meter" type="number" min="1" max="5000" value="<?= e($editPlace['radius_meter'] ?? '100') ?>" required></label>
+                            <div class="form-actions"><button class="button button-primary" type="submit"><?= $editPlace ? 'Simpan perubahan' : 'Simpan tempat' ?> <span>→</span></button><?php if ($editPlace): ?><a class="button button-outline" href="<?= e(dashboard_url('places')) ?>">Batal</a><?php endif; ?></div>
+                        </form>
+                    </div>
+                    <div class="list-panel">
+                        <div class="panel-heading"><span class="eyebrow">DAFTAR LOKASI</span><h2><?= count($dataRows) ?> tempat PKL</h2></div>
+                        <?php if (!$dataRows): ?><div class="empty-state">Belum ada tempat. Tambahkan lokasi pertama di formulir.</div><?php endif; ?>
+                        <?php foreach ($dataRows as $place): ?><article class="location-item"><span class="location-pin">⌖</span><div class="location-details"><strong><?= e($place['nama_industri']) ?></strong><p><?= e($place['alamat']) ?></p><small><?= e($place['latitude']) ?>, <?= e($place['longitude']) ?> <span class="dot-separator">·</span> radius <?= e($place['radius_meter']) ?> m</small><div class="item-actions"><a class="button button-outline button-small" href="<?= e(dashboard_url('places')) ?>&amp;edit=<?= e($place['id']) ?>">Edit</a><form method="post" data-confirm="Hapus tempat PKL <?= e($place['nama_industri']) ?>? Tempat yang dipakai oleh kelas tidak dapat dihapus."><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_place"><input type="hidden" name="place_id" value="<?= e($place['id']) ?>"><button class="button button-danger-soft button-small" type="submit">Hapus</button></form></div></div></article><?php endforeach; ?>
+                    </div>
+                </section>
+            <?php endif; ?>
 
-            <?php if ($view === 'classes' && $role === 'admin'): ?><section class="workspace-grid"><div class="form-panel"><div class="panel-heading"><span class="eyebrow">WADAH & KUOTA</span><h2>Buat kelas PKL</h2><p>Kode ini dipakai guru dan siswa saat mendaftar.</p></div><?php if (!$places): ?><div class="notice notice-warning">Tambahkan tempat PKL sebelum membuat kelas.</div><?php else: ?><form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="create_class"><label>Nama kelas<input name="nama_kelas" required maxlength="100" placeholder="Teknik Otomotif A"></label><label>Kode kelas<input name="kode_kelas" required maxlength="40" pattern="[A-Za-z0-9-]{3,40}" placeholder="TOYOTA-01"></label><label>Tempat PKL<select name="tempat_pkl_id" required><option value="">Pilih tempat</option><?php foreach ($places as $place): ?><option value="<?= e($place['id']) ?>"><?= e($place['nama_industri']) ?></option><?php endforeach; ?></select></label><div class="form-row"><label>Tiket guru<input name="kuota_guru" type="number" min="1" max="10" value="1" required></label><label>Tiket siswa<input name="kuota_siswa" type="number" min="1" max="500" value="20" required></label></div><button class="button button-primary" type="submit">Buat kelas <span>→</span></button></form><?php endif; ?></div><div class="list-panel"><div class="panel-heading"><span class="eyebrow">DAFTAR KELAS</span><h2><?= count($dataRows) ?> kelas terdaftar</h2></div><div class="table-scroll"><table><thead><tr><th>Kelas & kode</th><th>Tempat PKL</th><th>Tiket guru</th><th>Tiket siswa</th></tr></thead><tbody><?php if (!$dataRows): ?><tr><td colspan="4" class="empty-cell">Belum ada kelas.</td></tr><?php endif; ?><?php foreach ($dataRows as $class): ?><tr><td><strong><?= e($class['nama_kelas']) ?></strong><small class="cell-sub"><span class="code-chip code-chip-small"><?= e($class['kode_kelas']) ?></span></small></td><td><?= e($class['nama_industri']) ?></td><td><?= e($class['jumlah_guru'] ?? '0') ?> / <?= e($class['kuota_guru']) ?></td><td><?= e($class['jumlah_siswa'] ?? '0') ?> / <?= e($class['kuota_siswa']) ?><div class="capacity-track"><span style="width:<?= e(min(100, (int) round(((int) ($class['jumlah_siswa'] ?? 0) / max(1, (int) $class['kuota_siswa'])) * 100))) ?>%"></span></div></td></tr><?php endforeach; ?></tbody></table></div></div></section><?php endif; ?>
+            <?php if ($view === 'classes' && $role === 'admin'): ?>
+                <section class="workspace-grid">
+                    <div class="form-panel">
+                        <div class="panel-heading"><span class="eyebrow">KUOTA PKL</span><h2><?= $editClass ? 'Edit kelas PKL' : 'Buat kelas PKL' ?></h2><p>Kode kelas dipakai guru dan siswa saat mendaftar.</p></div>
+                        <?php if (!$places): ?><div class="notice notice-warning">Tambahkan tempat PKL sebelum membuat kelas.</div><?php else: ?>
+                            <form method="post" class="stack-form">
+                                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                <input type="hidden" name="action" value="<?= $editClass ? 'update_class' : 'create_class' ?>">
+                                <?php if ($editClass): ?><input type="hidden" name="class_id" value="<?= e($editClass['id']) ?>"><?php endif; ?>
+                                <label>Nama kelas<input name="nama_kelas" required maxlength="100" placeholder="Teknik Otomotif A" value="<?= e($editClass['nama_kelas'] ?? '') ?>"></label>
+                                <label>Kode kelas<input name="kode_kelas" required maxlength="40" pattern="[A-Za-z0-9-]{3,40}" placeholder="TOYOTA-01" value="<?= e($editClass['kode_kelas'] ?? '') ?>"></label>
+                                <label>Tempat PKL<select name="tempat_pkl_id" required><option value="">Pilih tempat</option><?php foreach ($places as $place): ?><option value="<?= e($place['id']) ?>" <?= $editClass && (int) $editClass['tempat_pkl_id'] === (int) $place['id'] ? 'selected' : '' ?>><?= e($place['nama_industri']) ?></option><?php endforeach; ?></select></label>
+                                <div class="form-row"><label>Kuota guru<input name="kuota_guru" type="number" min="1" max="10" value="<?= e($editClass['kuota_guru'] ?? '1') ?>" required></label><label>Kuota siswa<input name="kuota_siswa" type="number" min="1" max="500" value="<?= e($editClass['kuota_siswa'] ?? '20') ?>" required></label></div>
+                                <div class="form-actions"><button class="button button-primary" type="submit"><?= $editClass ? 'Simpan perubahan' : 'Buat kelas' ?> <span>→</span></button><?php if ($editClass): ?><a class="button button-outline" href="<?= e(dashboard_url('classes')) ?>">Batal</a><?php endif; ?></div>
+                            </form>
+                        <?php endif; ?>
+                    </div>
+                    <div class="list-panel">
+                        <div class="panel-heading"><span class="eyebrow">DAFTAR KELAS</span><h2><?= count($dataRows) ?> kelas terdaftar</h2></div>
+                        <div class="table-scroll"><table><thead><tr><th>Kelas & kode</th><th>Tempat PKL</th><th>Kuota guru</th><th>Kuota siswa</th><th>Aksi</th></tr></thead><tbody>
+                            <?php if (!$dataRows): ?><tr><td colspan="5" class="empty-cell">Belum ada kelas.</td></tr><?php endif; ?>
+                            <?php foreach ($dataRows as $class): ?><tr><td><strong><?= e($class['nama_kelas']) ?></strong><small class="cell-sub"><span class="code-chip code-chip-small"><?= e($class['kode_kelas']) ?></span></small></td><td><?= e($class['nama_industri']) ?></td><td><?= e($class['jumlah_guru'] ?? '0') ?> / <?= e($class['kuota_guru']) ?></td><td><?= e($class['jumlah_siswa'] ?? '0') ?> / <?= e($class['kuota_siswa']) ?><div class="capacity-track"><span style="width:<?= e(min(100, (int) round(((int) ($class['jumlah_siswa'] ?? 0) / max(1, (int) $class['kuota_siswa'])) * 100))) ?>%"></span></div></td><td><div class="item-actions"><a class="button button-outline button-small" href="<?= e(dashboard_url('classes')) ?>&amp;edit=<?= e($class['id']) ?>">Edit</a><form method="post" data-confirm="Hapus kelas <?= e($class['nama_kelas']) ?> (<?= e($class['kode_kelas']) ?>)? Akun guru/siswa tetap ada tetapi terlepas dari kelas; seluruh presensi dan logbook kelas ini akan terhapus permanen."><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_class"><input type="hidden" name="class_id" value="<?= e($class['id']) ?>"><button class="button button-danger-soft button-small" type="submit">Hapus</button></form></div></td></tr><?php endforeach; ?>
+                        </tbody></table></div>
+                    </div>
+                </section>
+            <?php endif; ?>
 
             <?php if (in_array($view, ['teachers', 'students'], true)): ?><section class="section-heading section-heading-list"><div><p class="eyebrow"><?= $view === 'teachers' ? 'PEMBIMBING TERDAFTAR' : 'PESERTA PKL' ?></p><h2><?= count($dataRows) ?> <?= $view === 'teachers' ? 'guru pembimbing' : 'siswa terdaftar' ?></h2></div></section><section class="table-panel"><div class="table-scroll"><table><thead><tr><th>Nama</th><th>Username</th><th>Kelas</th><th>Tempat PKL</th><?php if ($role === 'admin'): ?><th>Aksi</th><?php endif; ?></tr></thead><tbody><?php if (!$dataRows): ?><tr><td colspan="5" class="empty-cell">Belum ada data pengguna.</td></tr><?php endif; ?><?php foreach ($dataRows as $row): ?><tr><td><span class="user-cell"><span class="avatar avatar-table"><?= e(strtoupper(substr($row['nama'], 0, 1))) ?></span><strong><?= e($row['nama']) ?></strong></span></td><td><?= e($row['username']) ?></td><td><?= e($row['nama_kelas'] ?? 'Belum terhubung') ?><?php if (!empty($row['kode_kelas'])): ?><small class="cell-sub"><?= e($row['kode_kelas']) ?></small><?php endif; ?></td><td><?= e($row['nama_industri'] ?? '—') ?></td><?php if ($role === 'admin'): ?><td><form method="post" data-confirm="Hapus akun <?= e($row['nama']) ?>? Data presensi dan logbook siswa ini juga akan terhapus permanen."><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_user"><input type="hidden" name="user_id" value="<?= e($row['id']) ?>"><input type="hidden" name="return_view" value="<?= e($view) ?>"><button class="icon-button delete-button" type="submit" aria-label="Hapus <?= e($row['nama']) ?>" title="Hapus pengguna">⌫</button></form></td><?php endif; ?></tr><?php endforeach; ?></tbody></table></div></section><?php endif; ?>
 
