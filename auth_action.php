@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/config/app.php';
+require_once __DIR__ . '/includes/mailer.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('index.php');
@@ -24,6 +25,92 @@ if ($action === 'login') {
     redirect('dashboard.php');
 }
 
+if ($action === 'request_password_reset' || $action === 'resend_password_reset') {
+    $sessionReset = $_SESSION['password_reset_pending'] ?? null;
+    $email = $action === 'resend_password_reset' && is_array($sessionReset)
+        ? (string) ($sessionReset['email'] ?? '')
+        : trim((string) ($_POST['email'] ?? ''));
+    $redirectToReset = is_array($sessionReset) || $action === 'resend_password_reset';
+    $lastRequest = (int) ($_SESSION['password_reset_requested_at'] ?? 0);
+    if ($lastRequest > time() - 60) {
+        flash('warning', 'Tunggu satu menit sebelum meminta kode OTP lagi.');
+        redirect($redirectToReset ? 'index.php?reset=1' : 'index.php');
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        flash('danger', 'Masukkan alamat email yang valid.');
+        redirect($redirectToReset ? 'index.php?reset=1' : 'index.php');
+    }
+
+    $reset = [
+        'account_id' => null,
+        'email' => $email,
+        'otp_hash' => null,
+        'expires_at' => time() + 600,
+        'attempts' => 0,
+    ];
+    $statement = $pdo->prepare('SELECT id FROM users WHERE email = ? AND aktif = 1 LIMIT 1');
+    $statement->execute([$email]);
+    $accountId = $statement->fetchColumn();
+
+    try {
+        if ($accountId !== false) {
+            $otp = (string) random_int(100000, 999999);
+            send_password_reset_email($email, $otp);
+            $reset['account_id'] = (int) $accountId;
+            $reset['otp_hash'] = password_hash($otp, PASSWORD_DEFAULT);
+        }
+        $_SESSION['password_reset_pending'] = $reset;
+        $_SESSION['password_reset_requested_at'] = time();
+        flash('success', 'Jika email tersebut terdaftar, kode OTP akan dikirim. Periksa kotak masuk dan folder spam.');
+    } catch (MailDeliveryException $exception) {
+        error_log('Password reset email delivery failed: ' . $exception->getMessage());
+        flash('danger', 'OTP belum dapat dikirim. Layanan email belum siap; silakan hubungi administrator.');
+    }
+    redirect('index.php?reset=1');
+}
+
+if ($action === 'reset_password') {
+    $reset = $_SESSION['password_reset_pending'] ?? null;
+    if (!is_array($reset) || empty($reset['account_id']) || empty($reset['otp_hash'])) {
+        flash('danger', 'Permintaan pemulihan tidak valid. Minta kode OTP baru.');
+        redirect('index.php');
+    }
+    if ((int) ($reset['expires_at'] ?? 0) < time()) {
+        unset($_SESSION['password_reset_pending']);
+        flash('danger', 'Kode OTP sudah kedaluwarsa. Minta kode baru.');
+        redirect('index.php');
+    }
+    if ((int) ($reset['attempts'] ?? 0) >= 5) {
+        unset($_SESSION['password_reset_pending']);
+        flash('danger', 'Batas percobaan kode OTP tercapai. Minta kode baru.');
+        redirect('index.php');
+    }
+
+    $otp = trim((string) ($_POST['otp'] ?? ''));
+    $newPassword = (string) ($_POST['new_password'] ?? '');
+    $confirmation = (string) ($_POST['confirm_password'] ?? '');
+    if (!preg_match('/^\d{6}$/', $otp) || !password_verify($otp, (string) $reset['otp_hash'])) {
+        $_SESSION['password_reset_pending']['attempts'] = (int) $reset['attempts'] + 1;
+        flash('danger', 'Kode OTP tidak sesuai.');
+        redirect('index.php?reset=1');
+    }
+    if (strlen($newPassword) < 8 || $newPassword !== $confirmation) {
+        flash('danger', 'Kata sandi baru minimal 8 karakter dan konfirmasinya harus sama.');
+        redirect('index.php?reset=1');
+    }
+
+    $statement = $pdo->prepare('UPDATE users SET password = ? WHERE id = ? AND aktif = 1');
+    $statement->execute([password_hash($newPassword, PASSWORD_DEFAULT), (int) $reset['account_id']]);
+    unset($_SESSION['password_reset_pending'], $_SESSION['password_reset_requested_at']);
+    if ($statement->rowCount() !== 1) {
+        flash('danger', 'Akun tidak dapat diperbarui. Minta kode OTP baru atau hubungi administrator.');
+        redirect('index.php');
+    }
+    session_regenerate_id(true);
+    flash('success', 'Kata sandi berhasil diubah. Silakan masuk dengan kata sandi baru.');
+    redirect('index.php');
+}
+
 if ($action !== 'register') {
     flash('danger', 'Permintaan tidak dikenali.');
     redirect('index.php');
@@ -45,17 +132,14 @@ if ($role === 'admin' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     redirect('index.php');
 }
 
-$adminLockAcquired = false;
 try {
+    $statement = $pdo->prepare('SELECT 1 FROM users WHERE username = ? LIMIT 1');
+    $statement->execute([$username]);
+    if ($statement->fetchColumn() !== false) {
+        throw new DomainException('Username sudah digunakan. Gunakan username lain.');
+    }
+
     if ($role === 'admin') {
-        $adminLockAcquired = (int) $pdo->query("SELECT GET_LOCK('monitoring_pkl_first_admin', 10)")->fetchColumn() === 1;
-        if (!$adminLockAcquired) {
-            throw new DomainException('Sistem belum dapat mengunci pendaftaran admin. Silakan coba lagi.');
-        }
-        $adminExists = (int) $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn() > 0;
-        if ($adminExists) {
-            throw new DomainException('Akun Admin sudah dibuat. Silakan masuk menggunakan akun Admin.');
-        }
         $statement = $pdo->prepare('INSERT INTO users (nama, username, email, password, role, kelas_id) VALUES (?, ?, ?, ?, \'admin\', NULL)');
         $statement->execute([$nama, $username, $email, password_hash($password, PASSWORD_DEFAULT)]);
     } else {
@@ -88,11 +172,7 @@ try {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
-    $message = $exception->getCode() === '23000' ? 'Username sudah digunakan.' : 'Pendaftaran gagal. Periksa koneksi dan struktur database.';
+    $message = $exception->getCode() === '23000' ? 'Username atau email sudah digunakan.' : 'Pendaftaran gagal. Periksa koneksi dan struktur database.';
     flash('danger', $message);
-} finally {
-    if ($adminLockAcquired) {
-        $pdo->query("SELECT RELEASE_LOCK('monitoring_pkl_first_admin')");
-    }
 }
 redirect('index.php');

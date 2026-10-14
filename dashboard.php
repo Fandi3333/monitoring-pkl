@@ -23,6 +23,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect('index.php');
         }
 
+        if ($action === 'delete_account') {
+            if ($role !== 'admin') {
+                throw new DomainException('Hanya akun Admin yang dapat dihapus dari menu ini.');
+            }
+            $statement = $pdo->prepare("DELETE FROM users WHERE id = ? AND role = 'admin'");
+            $statement->execute([$user['id']]);
+            if ($statement->rowCount() !== 1) {
+                throw new DomainException('Akun Admin tidak ditemukan atau sudah dihapus.');
+            }
+            unset($_SESSION['user']);
+            session_regenerate_id(true);
+            flash('success', 'Akun Admin berhasil dihapus.');
+            redirect('index.php');
+        }
+
         if ($action === 'change_password') {
             $currentPassword = (string) ($_POST['current_password'] ?? '');
             $newPassword = (string) ($_POST['new_password'] ?? '');
@@ -318,7 +333,6 @@ if ($view === 'overview') {
         </nav>
         <div class="sidebar-bottom">
             <div class="sidebar-help"><span class="help-mark">i</span><div><strong>Ruang pendampingan</strong><span>PKL tercatat, langkah terarah.</span></div></div>
-            <form method="post"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="logout"><button class="nav-link nav-logout" type="submit"><span class="nav-icon" aria-hidden="true">↪</span><span>Keluar</span></button></form>
             <div class="profile-mini"><span class="avatar avatar-green"><?= e(strtoupper(substr($user['nama'], 0, 1))) ?></span><span><strong><?= e($user['nama']) ?></strong><small><?= e(role_label($role)) ?></small></span><span class="profile-more">···</span></div>
         </div>
     </aside>
@@ -326,7 +340,7 @@ if ($view === 'overview') {
         <header class="topbar">
             <button class="icon-button menu-toggle" type="button" data-menu-toggle aria-label="Buka navigasi">☰</button>
             <div class="breadcrumb"><span>Ruang PKL</span><span class="crumb-divider">/</span><strong><?= e($pageTitle) ?></strong></div>
-            <div class="topbar-right"><span class="topbar-date" data-local-date></span><span class="topbar-divider"></span><span class="avatar avatar-small"><?= e(strtoupper(substr($user['nama'], 0, 1))) ?></span><form method="post" class="topbar-logout-form"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="logout"><button class="button button-logout" type="submit"><span aria-hidden="true">↪</span> Keluar</button></form></div>
+            <div class="topbar-right"><span class="topbar-date" data-local-date></span><span class="topbar-divider"></span><span class="avatar avatar-small"><?= e(strtoupper(substr($user['nama'], 0, 1))) ?></span></div>
         </header>
         <div class="content-wrap">
             <section class="welcome-row"><div><p class="eyebrow"><?= e(role_label($role)) ?></p><h1>Hai, <?= e($user['nama']) ?> <span class="wave">!</span></h1><p class="muted">Pantau kegiatan PKL Anda hari ini.</p></div><div class="clock-block"><span data-local-day></span><strong data-local-clock></strong><small data-local-zone></small></div></section>
@@ -363,7 +377,7 @@ if ($view === 'overview') {
 
             <?php if ($view === 'reports' && $role === 'admin'): ?><section class="section-heading section-heading-list"><div><p class="eyebrow">REKAP MONITORING</p><h2>Presensi dan kegiatan siswa</h2><p class="muted">Maksimal 300 baris terbaru. Unduh CSV untuk dibuka di Excel.</p></div><a class="button button-primary" href="<?= e(dashboard_url('reports')) ?>&format=csv">Unduh CSV <span>↓</span></a></section><section class="table-panel"><div class="table-scroll"><table><thead><tr><th>Siswa</th><th>Kelas</th><th>Tanggal</th><th>Presensi</th><th>Logbook</th><th>Nilai</th></tr></thead><tbody><?php if (!$dataRows): ?><tr><td colspan="6" class="empty-cell">Belum ada data monitoring.</td></tr><?php endif; ?><?php foreach ($dataRows as $row): ?><tr><td><strong><?= e($row['nama_siswa']) ?></strong><small class="cell-sub"><?= e($row['username']) ?></small></td><td><?= e($row['kode_kelas']) ?></td><td><?= $row['tanggal'] ? e(id_date($row['tanggal'])) : '—' ?></td><td><?php if ($row['presensi_status']): ?><span class="badge badge-<?= e(status_class($row['presensi_status'])) ?>"><i></i><?= e(status_label($row['presensi_status'])) ?></span><small class="cell-sub"><?= e($row['jarak_meter']) ?> m</small><?php else: ?>—<?php endif; ?></td><td><?= $row['logbook_status'] ? e(status_label($row['logbook_status'])) : '—' ?></td><td><?= $row['nilai'] !== null ? e($row['nilai']) : '—' ?></td></tr><?php endforeach; ?></tbody></table></div></section><?php endif; ?>
 
-            <?php if ($view === 'security'): ?><section class="workspace-grid"><div class="form-panel"><div class="panel-heading"><span class="eyebrow">KEAMANAN AKUN</span><h2>Ubah kata sandi</h2><p>Gunakan kata sandi unik minimal 8 karakter. Perubahan berlaku setelah disimpan.</p></div><form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="change_password"><label>Kata sandi saat ini<input type="password" name="current_password" autocomplete="current-password" required></label><label>Kata sandi baru<input type="password" name="new_password" autocomplete="new-password" minlength="8" required></label><label>Ulangi kata sandi baru<input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required></label><button class="button button-primary" type="submit">Simpan kata sandi <span>→</span></button></form></div><div class="list-panel"><div class="panel-heading"><span class="eyebrow">AKUN AKTIF</span><h2><?= e($user['nama']) ?></h2></div><div class="location-item"><span class="location-pin">◎</span><div><strong><?= e(role_label($role)) ?></strong><p>Username: <?= e($user['username']) ?></p><small>Gunakan menu Keluar setelah selesai memakai perangkat bersama.</small></div></div></div></section><?php endif; ?>
+            <?php if ($view === 'security'): ?><section class="workspace-grid"><div class="form-panel"><div class="panel-heading"><span class="eyebrow">KEAMANAN AKUN</span><h2>Ubah kata sandi</h2><p>Gunakan kata sandi unik minimal 8 karakter. Perubahan berlaku setelah disimpan.</p></div><form method="post" class="stack-form"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="change_password"><label>Kata sandi saat ini<input type="password" name="current_password" autocomplete="current-password" required></label><label>Kata sandi baru<input type="password" name="new_password" autocomplete="new-password" minlength="8" required></label><label>Ulangi kata sandi baru<input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required></label><button class="button button-primary" type="submit">Simpan kata sandi <span>→</span></button></form></div><div class="list-panel"><div class="panel-heading"><span class="eyebrow">AKUN AKTIF</span><h2><?= e($user['nama']) ?></h2></div><div class="location-item"><span class="location-pin">◎</span><div><strong><?= e(role_label($role)) ?></strong><p>Username: <?= e($user['username']) ?></p><small>Keluar untuk mengakhiri sesi pada perangkat ini.</small></div></div><div class="account-actions"><form method="post"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="logout"><button class="button button-logout" type="submit"><span aria-hidden="true">↪</span> Keluar dari akun</button></form><?php if ($role === 'admin'): ?><form method="post" data-delete-account-form><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_account"><button class="button button-danger-soft" type="submit"><span aria-hidden="true">⌫</span> Hapus akun</button></form><?php endif; ?></div></div></section><?php if ($role === 'admin'): ?><dialog class="confirm-dialog" data-delete-account-dialog aria-labelledby="delete-account-title" aria-describedby="delete-account-description"><div class="confirm-dialog-icon" aria-hidden="true">!</div><h2 id="delete-account-title">Hapus akun Admin?</h2><p id="delete-account-description">Akun <strong><?= e($user['username']) ?></strong> akan dihapus permanen dan Anda akan keluar dari aplikasi. Tindakan ini tidak dapat dibatalkan.</p><div class="confirm-dialog-actions"><button class="button button-outline" type="button" data-cancel-delete-account>Batal</button><button class="button button-danger-soft" type="button" data-confirm-delete-account>Ya, hapus akun</button></div></dialog><?php endif; ?><?php endif; ?>
             <footer class="app-footer"><span>Ruang PKL</span><span>Monitoring Praktik Kerja Lapangan · <?= e(date('Y')) ?></span></footer>
         </div>
     </main>
