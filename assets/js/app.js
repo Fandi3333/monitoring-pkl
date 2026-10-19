@@ -1,4 +1,75 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const settingsStatus = document.querySelector('[data-settings-status]');
+    const themeChoices = [...document.querySelectorAll('[data-theme-choice]')];
+    const guideChoices = [...document.querySelectorAll('[data-guide-choice]')];
+    const guideForms = [...document.querySelectorAll('[data-guide]')];
+    const showSettingsStatus = (message) => {
+        if (!settingsStatus) return;
+        settingsStatus.textContent = message;
+        settingsStatus.hidden = false;
+    };
+    const selectTheme = (theme) => {
+        const selectedTheme = theme === 'dark' ? 'dark' : 'light';
+        document.body.dataset.theme = selectedTheme;
+        themeChoices.forEach((choice) => {
+            choice.checked = choice.value === selectedTheme;
+        });
+    };
+    const setGuidesVisible = (visible) => {
+        guideForms.forEach((form) => {
+            let guide = form.querySelector('[data-form-guide]');
+            if (!guide) {
+                guide = document.createElement('div');
+                guide.className = 'form-guide';
+                guide.dataset.formGuide = '';
+                guide.setAttribute('role', 'note');
+                const title = document.createElement('strong');
+                title.textContent = 'Panduan';
+                const message = document.createElement('span');
+                message.textContent = form.dataset.guide || '';
+                guide.append(title, message);
+                form.prepend(guide);
+            }
+            guide.hidden = !visible;
+        });
+        guideChoices.forEach((choice) => {
+            choice.checked = (choice.value === 'on') === visible;
+        });
+    };
+    try {
+        selectTheme(window.localStorage.getItem('ruang-pkl-theme') || 'light');
+        setGuidesVisible(window.localStorage.getItem('ruang-pkl-guide') === 'on');
+    } catch (error) {
+        selectTheme('light');
+        setGuidesVisible(false);
+        showSettingsStatus('Pengaturan browser tidak dapat dibaca. Pilihan hanya berlaku selama halaman ini terbuka.');
+    }
+    themeChoices.forEach((choice) => {
+        choice.addEventListener('change', () => {
+            if (!choice.checked) return;
+            selectTheme(choice.value);
+            try {
+                window.localStorage.setItem('ruang-pkl-theme', choice.value);
+                showSettingsStatus('Tema tersimpan di browser ini.');
+            } catch (error) {
+                showSettingsStatus('Tema diterapkan, tetapi tidak dapat disimpan di browser ini.');
+            }
+        });
+    });
+    guideChoices.forEach((choice) => {
+        choice.addEventListener('change', () => {
+            if (!choice.checked) return;
+            const enabled = choice.value === 'on';
+            setGuidesVisible(enabled);
+            try {
+                window.localStorage.setItem('ruang-pkl-guide', enabled ? 'on' : 'off');
+                showSettingsStatus(enabled ? 'Panduan penggunaan aktif.' : 'Panduan penggunaan nonaktif.');
+            } catch (error) {
+                showSettingsStatus('Pilihan panduan diterapkan, tetapi tidak dapat disimpan di browser ini.');
+            }
+        });
+    });
+
     document.querySelectorAll('[data-auto-dismiss]').forEach((notice) => {
         window.setTimeout(() => {
             notice.classList.add('is-dismissing');
@@ -189,35 +260,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.querySelectorAll('form[data-confirm]').forEach((form) => {
+    const confirmDialog = document.querySelector('[data-confirm-dialog]');
+    const confirmTitle = confirmDialog?.querySelector('[data-confirm-dialog-title]');
+    let pendingConfirmForm = null;
+    let confirmedForm = null;
+    document.querySelectorAll('form[data-confirm-title]').forEach((form) => {
         form.addEventListener('submit', (event) => {
-            if (!window.confirm(form.dataset.confirm)) event.preventDefault();
+            if (confirmedForm === form) {
+                confirmedForm = null;
+                return;
+            }
+            event.preventDefault();
+            if (typeof confirmDialog?.showModal === 'function') {
+                pendingConfirmForm = form;
+                if (confirmTitle) confirmTitle.textContent = form.dataset.confirmTitle || 'Yakin ingin menghapus data ini?';
+                confirmDialog.showModal();
+            } else if (window.confirm(form.dataset.confirmTitle || 'Yakin ingin menghapus data ini?')) {
+                confirmedForm = form;
+                form.requestSubmit();
+            }
         });
     });
-
-    const deleteAccountForm = document.querySelector('[data-delete-account-form]');
-    const deleteAccountDialog = document.querySelector('[data-delete-account-dialog]');
-    let deleteAccountConfirmed = false;
-    deleteAccountForm?.addEventListener('submit', (event) => {
-        if (deleteAccountConfirmed) {
-            deleteAccountConfirmed = false;
-            return;
-        }
-        event.preventDefault();
-        if (typeof deleteAccountDialog?.showModal === 'function') {
-            deleteAccountDialog.showModal();
-        } else if (window.confirm('Hapus akun Admin ini secara permanen?')) {
-            deleteAccountConfirmed = true;
-            deleteAccountForm.requestSubmit();
-        }
+    confirmDialog?.querySelector('[data-cancel-confirm]')?.addEventListener('click', () => {
+        pendingConfirmForm = null;
+        confirmDialog.close();
     });
-    deleteAccountDialog?.querySelector('[data-cancel-delete-account]')?.addEventListener('click', () => {
-        deleteAccountDialog.close();
+    confirmDialog?.querySelector('[data-submit-confirm]')?.addEventListener('click', () => {
+        if (!pendingConfirmForm) return;
+        confirmedForm = pendingConfirmForm;
+        pendingConfirmForm = null;
+        confirmDialog.close();
+        confirmedForm.requestSubmit();
     });
-    deleteAccountDialog?.querySelector('[data-confirm-delete-account]')?.addEventListener('click', () => {
-        deleteAccountConfirmed = true;
-        deleteAccountDialog.close();
-        deleteAccountForm.requestSubmit();
+    confirmDialog?.addEventListener('cancel', () => {
+        pendingConfirmForm = null;
+    });
+    confirmDialog?.addEventListener('click', (event) => {
+        if (event.target === confirmDialog) {
+            pendingConfirmForm = null;
+            confirmDialog.close();
+        }
     });
 
     const logbookForm = document.querySelector('[data-logbook-form]');
