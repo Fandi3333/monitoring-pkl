@@ -54,6 +54,7 @@ CREATE TABLE presensi (
     longitude_siswa DECIMAL(10,7) NOT NULL,
     jarak_meter DECIMAL(10,2) NOT NULL,
     status ENUM('valid', 'luar_radius') NOT NULL,
+    foto_bukti VARCHAR(255) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_presensi_siswa FOREIGN KEY (siswa_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_presensi_kelas FOREIGN KEY (kelas_pkl_id) REFERENCES kelas_pkl(id) ON DELETE CASCADE,
@@ -78,4 +79,3 @@ CREATE TABLE logbook (
     UNIQUE KEY uq_logbook_siswa_tanggal (siswa_id, tanggal),
     INDEX idx_logbook_kelas_status (kelas_pkl_id, status)
 ) ENGINE=InnoDB;
-

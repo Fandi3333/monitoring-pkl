@@ -276,6 +276,25 @@ td strong { color: #334b40; font-weight: 600; }
 .attendance-copy h3 { margin: 0 0 5px; font: 700 13px 'Manrope', sans-serif; }
 .attendance-copy p { max-width: 430px; margin: 0; color: #788b7f; font-size: 10px; line-height: 1.55; }
 .attendance-panel form { flex: 0 0 auto; text-align: right; }
+.attendance-panel form[data-geolocation-form] { display: grid; justify-items: end; gap: 8px; width: min(100%, 390px); }
+.attendance-camera { width: min(100%, 360px); overflow: hidden; border: 1px solid #dfe7e2; border-radius: 5px; background: #17221b; }
+.attendance-camera video, .attendance-camera img { display: block; width: 100%; max-height: 360px; object-fit: contain; }
+.attendance-camera-overlay { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(16, 29, 21, .72); backdrop-filter: blur(4px); }
+.attendance-camera-overlay[hidden] { display: none !important; }
+.attendance-camera-dialog { display: grid; width: min(100%, 560px); gap: 12px; padding: 19px; border: 1px solid #e3ebe5; border-radius: 9px; background: #fff; box-shadow: 0 24px 75px rgba(0, 0, 0, .28); }
+.attendance-camera-dialog > .eyebrow { margin: 0; }
+.attendance-camera-dialog .attendance-camera { width: 100%; }
+.attendance-camera-dialog .attendance-camera video, .attendance-camera-dialog .attendance-camera img { max-height: min(66vh, 560px); }
+.attendance-camera-preview { width: 100%; }
+.attendance-camera-preview button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 7px; border: 1px solid #dfe7e2; border-radius: 5px; background: #fff; color: var(--green-deep); cursor: pointer; font-size: 10px; text-align: left; }
+.attendance-camera-preview img { width: 66px; height: 54px; border-radius: 3px; object-fit: cover; }
+.photo-dialog { position: fixed; width: fit-content; max-width: min(920px, calc(100% - 32px)); max-height: calc(100% - 32px); padding: 42px 12px 12px; overflow: auto; border: 1px solid #e3ebe5; border-radius: 8px; background: #fff; box-shadow: 0 24px 75px rgba(0, 0, 0, .28); }
+.photo-dialog::backdrop { background: rgba(16, 29, 21, .76); backdrop-filter: blur(4px); }
+.photo-dialog > img { display: block; max-width: 100%; max-height: calc(100vh - 76px); object-fit: contain; }
+.photo-dialog-close { position: absolute; top: 7px; right: 9px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: #eff4f0; color: var(--ink); cursor: pointer; font-size: 23px; line-height: 1; }
+.attendance-camera-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.attendance-camera-actions .button { min-height: 35px; }
+.attendance-camera-actions [hidden] { display: none !important; }
 .form-feedback { max-width: 260px; margin: 7px 0 0; color: #71877a; font-size: 9px; }
 .form-guide { display: grid; gap: 4px; margin: 0; padding: 10px 12px; border: 1px solid #d6eade; border-left: 3px solid var(--green); border-radius: 4px; background: #f0f8f2; color: #5d7465; font-size: 10px; line-height: 1.55; }
 .form-guide strong { color: var(--green-deep); font-size: 10px; }
@@ -465,8 +484,12 @@ body.app-page[data-theme=dark] .button-logout:hover { border-color: #648d70; bac
     .workspace-grid, .logbook-grid { grid-template-columns: 1fr; }
     .settings-panel { min-height: 100px; gap: 16px; padding: 17px; }
     .attendance-panel { align-items: flex-start; flex-direction: column; }
-    .attendance-panel form { width: 100%; text-align: left; }
-    .attendance-panel .button { width: 100%; }
+    .attendance-panel form[data-geolocation-form] { width: 100%; justify-items: stretch; text-align: left; }
+    .attendance-camera { width: 100%; max-width: none; }
+    .attendance-camera-dialog { padding: 14px; }
+    .attendance-camera-overlay { padding: 12px; }
+    .attendance-camera-actions { justify-content: flex-start; }
+    .attendance-camera-actions .button { flex: 1 1 auto; }
     .review-card { grid-template-columns: 1fr; gap: 14px; }
     .review-form { padding: 13px 0 0; border-top: 1px solid #edf1ee; border-left: 0; }
     .grade-row { grid-template-columns: 1fr 53px; gap: 9px 13px; padding: 14px; }

@@ -187,6 +187,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($latitude === false || $longitude === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 || empty($user['kelas_id'])) {
                 throw new DomainException('Lokasi GPS tidak terbaca. Izinkan akses lokasi lalu coba lagi.');
             }
+            if (!isset($_FILES['foto_presensi']) || $_FILES['foto_presensi']['error'] !== UPLOAD_ERR_OK) {
+                $uploadError = $_FILES['foto_presensi']['error'] ?? UPLOAD_ERR_NO_FILE;
+                if ($uploadError === UPLOAD_ERR_NO_FILE) {
+                    throw new DomainException('Ambil foto melalui kamera sebelum mengirim presensi.');
+                }
+                if ($uploadError === UPLOAD_ERR_INI_SIZE || $uploadError === UPLOAD_ERR_FORM_SIZE) {
+                    throw new DomainException('Ukuran foto melebihi batas upload server. Coba ambil foto dengan ukuran lebih kecil.');
+                }
+                throw new DomainException('Foto gagal diunggah. Periksa koneksi lalu coba ambil foto kembali.');
+            }
+            $photo = $_FILES['foto_presensi'];
+            if ($photo['size'] > 5 * 1024 * 1024) {
+                throw new DomainException('Foto presensi melebihi batas 5 MB. Ambil ulang foto dengan ukuran lebih kecil.');
+            }
+            $mime = (new finfo(FILEINFO_MIME_TYPE))->file($photo['tmp_name']);
+            if ($mime !== 'image/jpeg') {
+                throw new DomainException('Foto presensi harus berupa gambar JPEG dari kamera.');
+            }
+            $directory = __DIR__ . '/uploads';
+            if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
+                throw new RuntimeException('Folder upload tidak dapat dibuat.');
+            }
+            $photoPath = 'presensi-' . bin2hex(random_bytes(16)) . '.jpg';
             $statement = $pdo->prepare('SELECT k.id, t.latitude, t.longitude, t.radius_meter FROM kelas_pkl k JOIN tempat_pkl t ON t.id = k.tempat_pkl_id WHERE k.id = ?');
             $statement->execute([$user['kelas_id']]);
             $place = $statement->fetch();
@@ -195,8 +218,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $distance = haversine_meters((float) $place['latitude'], (float) $place['longitude'], (float) $latitude, (float) $longitude);
             $status = $distance <= (int) $place['radius_meter'] ? 'valid' : 'luar_radius';
-            $statement = $pdo->prepare('INSERT INTO presensi (siswa_id, kelas_pkl_id, tanggal, jam, latitude_siswa, longitude_siswa, jarak_meter, status) VALUES (?, ?, CURDATE(), CURTIME(), ?, ?, ?, ?) ON DUPLICATE KEY UPDATE jam = VALUES(jam), latitude_siswa = VALUES(latitude_siswa), longitude_siswa = VALUES(longitude_siswa), jarak_meter = VALUES(jarak_meter), status = VALUES(status)');
-            $statement->execute([$user['id'], $place['id'], $latitude, $longitude, round($distance, 2), $status]);
+            $statement = $pdo->prepare('SELECT foto_bukti FROM presensi WHERE siswa_id = ? AND tanggal = CURDATE()');
+            $statement->execute([$user['id']]);
+            $previousPhoto = $statement->fetchColumn();
+            if (!move_uploaded_file($photo['tmp_name'], $directory . '/' . $photoPath)) {
+                throw new RuntimeException('Foto presensi gagal disimpan. Periksa izin folder uploads.');
+            }
+            try {
+                $statement = $pdo->prepare('INSERT INTO presensi (siswa_id, kelas_pkl_id, tanggal, jam, latitude_siswa, longitude_siswa, jarak_meter, status, foto_bukti) VALUES (?, ?, CURDATE(), CURTIME(), ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE jam = VALUES(jam), latitude_siswa = VALUES(latitude_siswa), longitude_siswa = VALUES(longitude_siswa), jarak_meter = VALUES(jarak_meter), status = VALUES(status), foto_bukti = VALUES(foto_bukti)');
+                $statement->execute([$user['id'], $place['id'], $latitude, $longitude, round($distance, 2), $status, $photoPath]);
+            } catch (PDOException $exception) {
+                if (!unlink($directory . '/' . $photoPath)) {
+                    error_log('Foto presensi gagal dibersihkan setelah penyimpanan database gagal: ' . $photoPath);
+                }
+                throw $exception;
+            }
+            if (is_string($previousPhoto) && preg_match('/^presensi-[a-f0-9]{32}\.jpg$/', $previousPhoto)) {
+                $previousPhotoPath = $directory . '/' . $previousPhoto;
+                if (is_file($previousPhotoPath) && !unlink($previousPhotoPath)) {
+                    error_log('Foto presensi lama gagal dibersihkan: ' . $previousPhoto);
+                }
+            }
             flash($status === 'valid' ? 'success' : 'warning', $status === 'valid' ? 'Presensi valid. Lokasi Anda berada dalam radius PKL.' : 'Presensi tercatat, tetapi lokasi Anda berada di luar radius PKL.');
             redirect(dashboard_url('attendance'));
         }
@@ -257,9 +299,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$logbookId || !in_array($status, ['approved', 'revision'], true) || ($score !== '' && (!is_numeric($score) || (float) $score < 0 || (float) $score > 100)) || mb_strlen($note) > 2000) {
                 throw new DomainException('Data penilaian tidak valid. Nilai harus berada di antara 0 dan 100.');
             }
-            $statement = $pdo->prepare("UPDATE logbook SET status = ?, nilai = ?, catatan_guru = ? WHERE id = ? AND kelas_pkl_id = ? AND EXISTS (SELECT 1 FROM users WHERE id = ? AND role = 'siswa' AND kelas_id = logbook.kelas_pkl_id)");
-            $statement->execute([$status, $score === '' ? null : $score, $note ?: null, $logbookId, $user['kelas_id'], $user['id']]);
-            flash($statement->rowCount() ? 'success' : 'danger', $statement->rowCount() ? 'Ulasan logbook berhasil disimpan.' : 'Logbook tidak ditemukan di kelas Anda.');
+            $pdo->beginTransaction();
+            $statement = $pdo->prepare("SELECT l.id FROM logbook l JOIN users siswa ON siswa.id = l.siswa_id AND siswa.role = 'siswa' AND siswa.kelas_id = l.kelas_pkl_id WHERE l.id = ? AND l.kelas_pkl_id = ? FOR UPDATE");
+            $statement->execute([$logbookId, $user['kelas_id']]);
+            if (!$statement->fetch()) {
+                throw new DomainException('Logbook tidak ditemukan di kelas Anda.');
+            }
+            $statement = $pdo->prepare('UPDATE logbook SET status = ?, nilai = ?, catatan_guru = ? WHERE id = ? AND kelas_pkl_id = ?');
+            $statement->execute([$status, $score === '' ? null : $score, $note ?: null, $logbookId, $user['kelas_id']]);
+            $pdo->commit();
+            flash('success', 'Ulasan logbook berhasil disimpan.');
             redirect(dashboard_url('logbooks'));
         }
 
@@ -527,7 +576,43 @@ if ($view === 'overview') {
 
             <?php if (in_array($view, ['teachers', 'students'], true)): ?><section class="section-heading section-heading-list"><div><p class="eyebrow"><?= $view === 'teachers' ? 'PEMBIMBING TERDAFTAR' : 'PESERTA PKL' ?></p><h2><?= count($dataRows) ?> <?= $view === 'teachers' ? 'guru pembimbing' : 'siswa terdaftar' ?></h2></div></section><section class="table-panel"><div class="table-scroll"><table><thead><tr><th>Nama</th><th>Username</th><th>Kelas</th><th>Tempat PKL</th><?php if ($role === 'admin'): ?><th>Aksi</th><?php endif; ?></tr></thead><tbody><?php if (!$dataRows): ?><tr><td colspan="5" class="empty-cell">Belum ada data pengguna.</td></tr><?php endif; ?><?php foreach ($dataRows as $row): ?><tr><td><span class="user-cell"><span class="avatar avatar-table"><?= e(strtoupper(substr($row['nama'], 0, 1))) ?></span><strong><?= e($row['nama']) ?></strong></span></td><td><?= e($row['username']) ?></td><td><?= e($row['nama_kelas'] ?? 'Belum terhubung') ?><?php if (!empty($row['kode_kelas'])): ?><small class="cell-sub"><?= e($row['kode_kelas']) ?></small><?php endif; ?></td><td><?= e($row['nama_industri'] ?? '—') ?></td><?php if ($role === 'admin'): ?><td><form method="post" data-confirm-title="Yakin ingin menghapus akun <?= $view === 'teachers' ? 'guru' : 'siswa' ?> <?= e($row['nama']) ?>?"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_user"><input type="hidden" name="user_id" value="<?= e($row['id']) ?>"><input type="hidden" name="return_view" value="<?= e($view) ?>"><button class="icon-button delete-button" type="submit" aria-label="Hapus <?= e($row['nama']) ?>" title="Hapus pengguna">⌫</button></form></td><?php endif; ?></tr><?php endforeach; ?></tbody></table></div></section><?php endif; ?>
 
-            <?php if ($view === 'attendance'): ?><section class="section-heading section-heading-list"><div><p class="eyebrow">GEOTAGGING</p><h2><?= $role === 'siswa' ? 'Catat kehadiran hari ini' : 'Rekap presensi siswa' ?></h2></div></section><?php if ($role === 'siswa'): ?><section class="attendance-panel"><div class="attendance-copy"><span class="attendance-icon">⌖</span><div><h3>Presensi berbasis lokasi</h3><p>Lokasi Anda dibandingkan dengan titik tempat PKL. Pastikan GPS perangkat aktif.</p></div></div><form method="post" data-geolocation-form data-guide="Aktifkan GPS dan izinkan akses lokasi pada browser. Tekan tombol untuk mencatat presensi; sistem akan memeriksa jarak Anda dari tempat PKL."><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="attendance"><input type="hidden" name="latitude"><input type="hidden" name="longitude"><button class="button button-primary" type="submit" data-location-button>Ambil lokasi & presensi <span>→</span></button><p class="form-feedback" data-location-feedback aria-live="polite"></p></form></section><?php endif; ?><section class="table-panel"><div class="table-scroll"><table><thead><tr><?php if ($role === 'guru'): ?><th>Siswa</th><?php endif; ?><th>Tanggal</th><th>Jam</th><th>Jarak dari lokasi</th><th>Status</th></tr></thead><tbody><?php if (!$dataRows): ?><tr><td colspan="5" class="empty-cell">Belum ada presensi tercatat.</td></tr><?php endif; ?><?php foreach ($dataRows as $row): ?><tr><?php if ($role === 'guru'): ?><td><strong><?= e($row['nama']) ?></strong><small class="cell-sub"><?= e($row['username']) ?></small></td><?php endif; ?><td><?= e(id_date($row['tanggal'])) ?></td><td><?= e($row['jam']) ?></td><td><?= e(number_format((float) $row['jarak_meter'], 1, ',', '.')) ?> m</td><td><span class="badge badge-<?= e(status_class($row['status'])) ?>"><i></i><?= e(status_label($row['status'])) ?></span></td></tr><?php endforeach; ?></tbody></table></div></section><?php endif; ?>
+            <?php if ($view === 'attendance'): ?>
+                <section class="section-heading section-heading-list">
+                    <div><p class="eyebrow">GEOTAGGING</p><h2><?= $role === 'siswa' ? 'Catat kehadiran hari ini' : 'Rekap presensi siswa' ?></h2></div>
+                </section>
+                <?php if ($role === 'siswa'): ?>
+                    <section class="attendance-panel">
+                        <div class="attendance-copy"><span class="attendance-icon">⌖</span><div><h3>Presensi berbasis lokasi</h3><p>Ambil foto langsung dari kamera. Foto akan diberi waktu, peta, alamat, dan koordinat GPS. Koordinat dikirim ke OpenStreetMap untuk menampilkan peta dan alamat.</p></div></div>
+                        <form method="post" enctype="multipart/form-data" data-geolocation-form data-guide="Izinkan akses kamera dan GPS. Ambil foto untuk menambahkan cap waktu dan koordinat, lalu kirim presensi.">
+                            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                            <input type="hidden" name="action" value="attendance">
+                            <input type="hidden" name="latitude">
+                            <input type="hidden" name="longitude">
+                            <input type="file" name="foto_presensi" accept="image/jpeg" data-attendance-photo hidden>
+                            <div class="attendance-camera-overlay" data-attendance-overlay role="dialog" aria-modal="true" aria-label="Ambil foto presensi" tabindex="-1" hidden>
+                                <div class="attendance-camera-dialog">
+                                    <p class="eyebrow">FOTO PRESENSI</p>
+                                    <div class="attendance-camera" data-attendance-camera><video data-attendance-video autoplay muted playsinline></video><img data-attendance-preview alt="Pratinjau foto presensi dengan peta dan watermark lokasi" hidden></div>
+                                    <div class="attendance-camera-actions">
+                                        <button class="button button-outline" type="button" data-camera-capture>Ambil foto</button>
+                                        <button class="button button-outline" type="button" data-camera-retake hidden>Ulangi foto</button>
+                                        <button class="button button-primary" type="button" data-camera-use hidden>Gunakan foto</button>
+                                    </div>
+                                    <p class="form-feedback" data-camera-feedback aria-live="polite"></p>
+                                </div>
+                            </div>
+                            <div class="attendance-camera-preview" data-attendance-preview-card hidden><button type="button" data-camera-reopen aria-label="Ambil ulang foto presensi"><img data-attendance-preview-thumb alt="Foto presensi dengan peta dan watermark lokasi"><span>Ambil ulang foto</span></button></div>
+                            <div class="attendance-camera-actions attendance-submit-actions">
+                                <button class="button button-outline" type="button" data-camera-start>Buka kamera</button>
+                                <button class="button button-primary" type="submit" data-location-button>Ambil lokasi & presensi <span>→</span></button>
+                            </div>
+                            <p class="form-feedback" data-location-feedback aria-live="polite">Foto kamera wajib diambil sebelum presensi dikirim.</p>
+                        </form>
+                    </section>
+                <?php endif; ?>
+                <section class="table-panel"><div class="table-scroll"><table><thead><tr><?php if ($role === 'guru'): ?><th>Siswa</th><?php endif; ?><th>Tanggal</th><th>Jam</th><th>Jarak dari lokasi</th><th>Status</th><th>Gambar</th></tr></thead><tbody><?php if (!$dataRows): ?><tr><td colspan="<?= $role === 'guru' ? '6' : '5' ?>" class="empty-cell">Belum ada presensi tercatat.</td></tr><?php endif; ?><?php foreach ($dataRows as $row): ?><tr><?php if ($role === 'guru'): ?><td><strong><?= e($row['nama']) ?></strong><small class="cell-sub"><?= e($row['username']) ?></small></td><?php endif; ?><td><?= e(id_date($row['tanggal'])) ?></td><td><?= e($row['jam']) ?></td><td><?= e(number_format((float) $row['jarak_meter'], 1, ',', '.')) ?> m</td><td><span class="badge badge-<?= e(status_class($row['status'])) ?>"><i></i><?= e(status_label($row['status'])) ?></span></td><td><?php if (!empty($row['foto_bukti'])): ?><a class="text-link" href="uploads/<?= e(rawurlencode($row['foto_bukti'])) ?>" data-photo-view>Lihat gambar ↗</a><?php else: ?><span class="muted">—</span><?php endif; ?></td></tr><?php endforeach; ?></tbody></table></div></section>
+                <dialog class="photo-dialog" data-photo-dialog aria-label="Foto presensi"><button class="photo-dialog-close" type="button" data-photo-close aria-label="Tutup">×</button><img data-photo-dialog-image alt="Foto presensi dengan watermark lokasi"></dialog>
+            <?php endif; ?>
 
             <?php if ($view === 'logbook' && $role === 'siswa'): ?><section class="workspace-grid logbook-grid"><div class="form-panel"><div class="panel-heading"><span class="eyebrow">JURNAL HARIAN</span><h2 data-logbook-heading>Ceritakan kegiatanmu</h2><p>Catatan dikirim ke guru pembimbing untuk ditinjau.</p></div><form method="post" enctype="multipart/form-data" class="stack-form" data-logbook-form data-guide="Pilih tanggal kegiatan, ceritakan pekerjaan atau keterampilan yang dipelajari, lalu lampirkan foto bukti jika ada. Pastikan deskripsi sesuai kegiatan PKL Anda."><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="create_logbook"><label>Tanggal kegiatan<input type="date" name="tanggal" max="<?= e(date('Y-m-d')) ?>" value="<?= e(date('Y-m-d')) ?>" required></label><label>Deskripsi kegiatan<textarea name="kegiatan" rows="6" maxlength="5000" required placeholder="Tuliskan pekerjaan, proses, atau keterampilan yang dipelajari..."></textarea></label><label>Foto bukti <span class="label-note">JPG, PNG, WebP · maks. 5 MB</span><input type="file" name="foto_bukti" accept="image/jpeg,image/png,image/webp" capture="environment"></label><button class="button button-primary" type="submit">Kirim logbook <span>→</span></button></form></div><div class="list-panel"><div class="panel-heading"><span class="eyebrow">RIWAYAT SAYA</span><h2><?= count($dataRows) ?> catatan</h2></div><?php if (!$dataRows): ?><div class="empty-state">Logbook yang Anda kirim akan muncul di sini.</div><?php endif; ?><?php foreach ($dataRows as $row): ?><article class="journal-item"><div class="journal-head"><strong><?= e(id_date($row['tanggal'])) ?></strong><span class="badge badge-<?= e(status_class($row['status'])) ?>"><i></i><?= e(status_label($row['status'])) ?></span></div><p><?= nl2br(e($row['kegiatan'])) ?></p><?php if ($row['foto_bukti']): ?><a class="photo-link" href="uploads/<?= e(rawurlencode($row['foto_bukti'])) ?>" target="_blank" rel="noopener">Lihat foto bukti ↗</a><?php endif; ?><?php if ($row['status'] === 'revision'): ?><p><button class="text-link" type="button" data-revise-logbook data-date="<?= e($row['tanggal']) ?>" data-activity="<?= e($row['kegiatan']) ?>">Edit & kirim ulang ↗</button></p><?php endif; ?><?php if ($row['catatan_guru']): ?><div class="teacher-note"><strong>Catatan guru<?= $row['nilai'] !== null ? ' · Nilai ' . e($row['nilai']) : '' ?></strong><p><?= nl2br(e($row['catatan_guru'])) ?></p></div><?php endif; ?></article><?php endforeach; ?></div></section><?php endif; ?>
 
