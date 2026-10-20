@@ -424,7 +424,7 @@ if ($view === 'overview') {
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
     <?php endif; ?>
-    <script src="assets/js/app.js" defer></script>
+    <script src="assets/js/app.js?v=<?= (int) filemtime(__DIR__ . '/assets/js/app.js') ?>" defer></script>
 </head>
 <body class="app-page">
 <div class="app-shell">
@@ -541,20 +541,12 @@ if ($view === 'overview') {
                 <section class="section-heading section-heading-list"><div><p class="eyebrow">PREFERENSI APLIKASI</p><h2>Pengaturan</h2><p class="muted">Atur tampilan dan panduan sesuai kebutuhan Anda.</p></div></section>
                 <section class="settings-page-grid">
                     <div class="form-panel settings-panel">
-                        <div class="panel-heading"><span class="eyebrow">TAMPILAN</span><h2>Tema aplikasi</h2><p>Pilihan tema disimpan di browser ini dan digunakan di semua dashboard.</p></div>
-                        <fieldset class="settings-choice settings-choice-page">
-                            <legend>Pilih tema</legend>
-                            <label><input type="radio" name="appearance" value="light" data-theme-choice checked><span>Terang (default)</span></label>
-                            <label><input type="radio" name="appearance" value="dark" data-theme-choice><span>Gelap</span></label>
-                        </fieldset>
+                        <div class="panel-heading"><span class="eyebrow">TAMPILAN</span><h2>Tema aplikasi</h2><p>Tema terang digunakan secara default. Aktifkan untuk menggunakan tema gelap.</p></div>
+                        <label class="setting-toggle" title="Gunakan tema gelap"><input type="checkbox" role="switch" aria-label="Gunakan tema gelap" data-theme-toggle><span class="setting-switch-track" aria-hidden="true"></span></label>
                     </div>
                     <div class="form-panel settings-panel">
                         <div class="panel-heading"><span class="eyebrow">BANTUAN</span><h2>Panduan penggunaan</h2><p>Tampilkan petunjuk singkat pada formulir agar lebih mudah digunakan.</p></div>
-                        <fieldset class="settings-choice settings-choice-page">
-                            <legend>Status panduan</legend>
-                            <label><input type="radio" name="usage-guide" value="on" data-guide-choice><span>Aktif</span></label>
-                            <label><input type="radio" name="usage-guide" value="off" data-guide-choice checked><span>Nonaktif</span></label>
-                        </fieldset>
+                        <label class="setting-toggle" title="Tampilkan panduan penggunaan"><input type="checkbox" role="switch" aria-label="Tampilkan panduan penggunaan" data-guide-toggle><span class="setting-switch-track" aria-hidden="true"></span></label>
                     </div>
                     <p class="settings-status settings-page-status" data-settings-status role="status" aria-live="polite" hidden></p>
                 </section>

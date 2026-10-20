@@ -1,8 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
     const settingsStatus = document.querySelector('[data-settings-status]');
-    const themeChoices = [...document.querySelectorAll('[data-theme-choice]')];
-    const guideChoices = [...document.querySelectorAll('[data-guide-choice]')];
+    const themeToggle = document.querySelector('[data-theme-toggle]');
+    const guideToggle = document.querySelector('[data-guide-toggle]');
     const guideForms = [...document.querySelectorAll('[data-guide]')];
+    const themeStorageKey = 'ruang-pkl-theme-v2';
     const showSettingsStatus = (message) => {
         if (!settingsStatus) return;
         settingsStatus.textContent = message;
@@ -11,9 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const selectTheme = (theme) => {
         const selectedTheme = theme === 'dark' ? 'dark' : 'light';
         document.body.dataset.theme = selectedTheme;
-        themeChoices.forEach((choice) => {
-            choice.checked = choice.value === selectedTheme;
-        });
+        if (themeToggle) themeToggle.checked = selectedTheme === 'dark';
     };
     const setGuidesVisible = (visible) => {
         guideForms.forEach((form) => {
@@ -32,42 +31,35 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             guide.hidden = !visible;
         });
-        guideChoices.forEach((choice) => {
-            choice.checked = (choice.value === 'on') === visible;
-        });
+        if (guideToggle) guideToggle.checked = visible;
     };
     try {
-        selectTheme(window.localStorage.getItem('ruang-pkl-theme') || 'light');
+        selectTheme(window.localStorage.getItem(themeStorageKey) || 'light');
         setGuidesVisible(window.localStorage.getItem('ruang-pkl-guide') === 'on');
     } catch (error) {
         selectTheme('light');
         setGuidesVisible(false);
         showSettingsStatus('Pengaturan browser tidak dapat dibaca. Pilihan hanya berlaku selama halaman ini terbuka.');
     }
-    themeChoices.forEach((choice) => {
-        choice.addEventListener('change', () => {
-            if (!choice.checked) return;
-            selectTheme(choice.value);
-            try {
-                window.localStorage.setItem('ruang-pkl-theme', choice.value);
-                showSettingsStatus('Tema tersimpan di browser ini.');
-            } catch (error) {
-                showSettingsStatus('Tema diterapkan, tetapi tidak dapat disimpan di browser ini.');
-            }
-        });
+    themeToggle?.addEventListener('change', () => {
+        const theme = themeToggle.checked ? 'dark' : 'light';
+        selectTheme(theme);
+        try {
+            window.localStorage.setItem(themeStorageKey, theme);
+            showSettingsStatus('Tema tersimpan di browser ini.');
+        } catch (error) {
+            showSettingsStatus('Tema diterapkan, tetapi tidak dapat disimpan di browser ini.');
+        }
     });
-    guideChoices.forEach((choice) => {
-        choice.addEventListener('change', () => {
-            if (!choice.checked) return;
-            const enabled = choice.value === 'on';
-            setGuidesVisible(enabled);
-            try {
-                window.localStorage.setItem('ruang-pkl-guide', enabled ? 'on' : 'off');
-                showSettingsStatus(enabled ? 'Panduan penggunaan aktif.' : 'Panduan penggunaan nonaktif.');
-            } catch (error) {
-                showSettingsStatus('Pilihan panduan diterapkan, tetapi tidak dapat disimpan di browser ini.');
-            }
-        });
+    guideToggle?.addEventListener('change', () => {
+        const enabled = guideToggle.checked;
+        setGuidesVisible(enabled);
+        try {
+            window.localStorage.setItem('ruang-pkl-guide', enabled ? 'on' : 'off');
+            showSettingsStatus(enabled ? 'Panduan penggunaan aktif.' : 'Panduan penggunaan nonaktif.');
+        } catch (error) {
+            showSettingsStatus('Pilihan panduan diterapkan, tetapi tidak dapat disimpan di browser ini.');
+        }
     });
 
     document.querySelectorAll('[data-auto-dismiss]').forEach((notice) => {
