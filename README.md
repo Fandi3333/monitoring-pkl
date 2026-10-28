@@ -87,25 +87,31 @@ php artisan storage:link
 npm run dev
 php artisan serve
 # Buka http://127.0.0.1:8000
+```
 
-### Pengujian
--Black Box Testing: 95 Skenario (Login, Presensi, Logbook) - 100% Passed
--UAT: Kuesioner Likert Scale ke 10 Responden (Guru & Siswa) - 90.86% Sangat Layak
+**Akun Demo (dari Seeder):**
+| Role | Email | Password |
+| :--- | :--- | :--- |
+| Admin | admin@muh6.sch.id | password123 |
+| Guru | guru@muh6.sch.id | password123 |
+| Siswa | siswa@muh6.sch.id | password123 |
 
-👥 Tim Pengembang
-Kelas 55 Kelompok C - UT
--Krisdianto (PO) - Analisis Kebutuhan & Dokumentasi SMK Muh 6 Comal
--Fandi3333 (Fullstack Dev) - Laravel & Database
--Astrid
--Desy
--
+### 🧪 Pengujian
+- **Black Box Testing:** 95 Skenario - 100% Passed
+- **UAT:** 90.86% Sangat Layak
 
-📝 Catatan Pengembangan (Sprint)
-Sprint 1: Auth, CRUD Kelas & Tempat PKL
-Sprint 2: Presensi Geo-Tagging & Maps
-Sprint 3: E-Logbook, Dashboard & Laporan (Saat Ini)
+### 👥 Tim Pengembang
+**Kelas 55 Kelompok C - UT**
+- **Krisdianto** - PO
+- **Fandi3333** - Fullstack Dev
+- **Astrid** - UI/UX
+- **Desy** - Dokumentasi
 
+### 📝 Sprint
+- Sprint 1: Auth, CRUD Kelas & Tempat PKL
+- Sprint 2: Geo-Tagging & Maps
+- Sprint 3: E-Logbook & Laporan
 
-📄 Lisensi
+### 📄Lisensi
 Academic Project - Universitas Terbuka 2025/2026. Tidak untuk komersial.
 Dibuat dengan ❤️ untuk Digitalisasi SMK Muhammadiyah 6 Comal.
