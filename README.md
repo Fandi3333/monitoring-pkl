@@ -27,6 +27,7 @@ Aplikasi monitoring PKL berbasis **PHP Native (PHP 8+)** untuk SMK. Fokus utama:
 - PHP Native 8.1+ (Strict Types)
 - MySQL / MariaDB
 - TailwindCSS (UI RuangPKL Sage Green #e8f5e9)
+- PHPMailer (di `includes/mailer.php`) - ada panduan di `SMTP-SETUP.md`
 
 ### 📁 Struktur Folder monitoring-pkl-main/
 ├── assets/              # CSS & JS RuangPKL
@@ -68,4 +69,4 @@ Tidak perlu `composer install` dan `php artisan` karena ini PHP Native.
 
 ---
 Dibuat untuk Tugas Capstone 55 Kelompok C - 2026
-- PHPMailer (di `includes/mailer.php`) - ada panduan di `SMTP-SETUP.md`
+
