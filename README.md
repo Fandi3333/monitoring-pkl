@@ -65,7 +65,7 @@ Tidak perlu `composer install` dan `php artisan` karena ini PHP Native.
 - [x] Base Project oleh Fandi
 - [ ] Selesaikan CRUD Tempat PKL (latitude, longitude, radius_meter, kuota)
 - [ ] Perbaiki Edit/Hapus Kelas
-- [ ] Laporan Akhir & Presentasi oleh Krisdianto
+- [ ] Laporan Akhir & Presentasi
 
 ---
 Dibuat untuk Tugas Capstone 55 Kelompok C - 2026
