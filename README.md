@@ -69,5 +69,3 @@ Tidak perlu `composer install` dan `php artisan` karena ini PHP Native.
 ---
 Dibuat untuk Tugas Capstone 55 Kelompok C - 2026
 - PHPMailer (di `includes/mailer.php`) - ada panduan di `SMTP-SETUP.md`
-
-### 📁 Struktur Folder (Punya Fandi)
