@@ -1,117 +1,72 @@
-# 🛠️ Pantau Hadir - Sistem Monitoring PKL SMK Muhammadiyah 6 Comal
+# 📋 Monitoring PKL - Sistem Monitoring Praktik Kerja Lapangan
 
-> Sistem Informasi Monitoring Praktik Kerja Lapangan (PKL) Berbasis Web dengan Integrasi **Geo-Tagging Presensi** dan **E-Logbook Digital** untuk Program Keahlian Teknik Kendaraan Ringan (TKR).
+Aplikasi monitoring PKL berbasis **PHP Native (PHP 8+)** untuk SMK. Fokus utama: Presensi berbasis radius lokasi (Geofencing), Jurnal Harian, dan Monitoring Guru Pembimbing.
 
-![Laravel](https://img.shields.io/badge/Laravel-10.x-red) ![PHP](https://img.shields.io/badge/PHP-8.2-blue) ![License](https://img.shields.io/badge/License-Academic-green) ![Status](https://img.shields.io/badge/Status-Sprint%202-yellow)
+**Capstone Project - Kelompok C - Universitas Terbuka**
 
-Capstone Project **Kelas 55 Kelompok C** - Universitas Terbuka - Studi Kasus SMK Muhammadiyah 6 Comal, Pemalang.
-
-### 📖 Latar Belakang Masalah
-SMK Muhammadiyah 6 Comal (Akreditasi B, 162 Siswa, Jurusan Teknik Otomotif & Akuntansi) masih menggunakan **buku jurnal kertas** untuk PKL TKR. Permasalahan:
-1.  Presensi manual, rentan hilang/rusak karena oli di bengkel, rekap butuh 3-5 hari.
-2.  Monitoring lokasi tidak real-time, guru pembimbing hanya kunjungan 2-3x selama 3 bulan.
-3.  Jurnal kegiatan baru dievaluasi di akhir, tidak ada feedback harian dan foto dokumentasi terpisah.
-
-### 💡 Solusi Kami
-Menggantikan sistem manual menjadi platform digital terpusat:
-- **Geo-Tagging:** Presensi hanya bisa dalam radius 100m dari bengkel mitra (Validasi Latitude & Longitude).
-- **E-Logbook:** Jurnal harian digital + upload foto bukti kerja + komentar guru secara real-time.
-- **Dashboard:** Monitoring transparan untuk Admin, Guru Penyelia, dan Siswa.
-
-### ✨ Fitur Lengkap (Sesuai PRD)
-
-**A. Admin**
-- [x] Login & Logout aman
-- [x] CRUD Data Kelas (X, XI, XII TKR)
-- [x] CRUD Data Tempat PKL + Set Titik Koordinat (Lat, Lng) + Radius
-- [x] CRUD Data Guru Pembimbing & Siswa
-- [x] Rekapitulasi Kehadiran & Jurnal Global
-- [x] Export Laporan PDF/Excel
-
-**B. Guru Pembimbing / Penyelia**
-- [x] Dashboard monitoring siswa binaan (8-10 siswa)
-- [x] Verifikasi Presensi Geo-Tagging (Lihat di Maps)
-- [x] Review & Beri Feedback pada E-Logbook Harian
-- [x] Penilaian Akhir PKL
-
-**C. Siswa**
-- [x] Presensi Masuk & Pulang dengan Selfie + Deteksi Lokasi
-- [x] Isi E-Logbook: Tanggal, Deskripsi Kegiatan, Foto Dokumentasi
-- [x] Lihat Riwayat Presensi & Feedback Guru
-- [x] Ganti Password
-
-### 🏗️ Arsitektur Sistem
-- **Pattern:** MVC Laravel
-- **Database:** MySQL - Relasi: users -> kelas, users -> tempat_pkl, presensi -> user, logbooks -> user
-- **Maps:** Leaflet.js + OpenStreetMap (Gratis, tidak butuh API Key Google)
-- **Auth:** Laravel Breeze / Fortify
-
-### 📁 Struktur Folder Penting
-monitoring-pkl/
-├── app/Http/Controllers/ (AuthController, KelasController, TempatPklController, PresensiController, LogbookController)
-├── resources/views/ (admin, guru, siswa, layouts)
-├── routes/web.php
-├── database/migrations/
-└── public/assets/
-
-### 🚀 Instalasi Lengkap
-
-**Prasyarat:** PHP 8.2, Composer, Node.js, MySQL
-
-```bash
-# 1. Clone
-git clone https://github.com/Fandi3333/monitoring-pkl.git
-cd monitoring-pkl
-
-# 2. Install
-composer install
-npm install
-
-# 3. Env
-cp .env.example .env
-php artisan key:generate
-
-# 4. Edit .env database kamu
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=db_monitoring_pkl
-DB_USERNAME=root
-DB_PASSWORD=
-
-# 5. Migrate + Seeder Akun Demo
-php artisan migrate --seed
-php artisan storage:link
-
-# 6. Run
-npm run dev
-php artisan serve
-# Buka http://127.0.0.1:8000
-```
-
-**Akun Demo (dari Seeder):**
-| Role | Email | Password |
+### 👥 Anggota Kelompok C
+| NIM | Nama | Role di Project Ini |
 | :--- | :--- | :--- |
-| Admin | admin@muh6.sch.id | password123 |
-| Guru | guru@muh6.sch.id | password123 |
-| Siswa | siswa@muh6.sch.id | password123 |
+| 048140247 | DESY RATNATIKA | UI/UX Dashboard RuangPKL & Dokumentasi |
+| 049615361 | AHMAD RIDHAN | Modul Siswa (Presensi & Jurnal) |
+| 050068852 | FANDI APRIADI | Project Starter, Auth & CRUD Tempat PKL |
+| 050482927 | KRISDIANTO | Dashboard Logic, Geofencing & Laporan |
+| 051728992 | ASTRID EKA DYASHA | Testing, Validasi & Export Laporan |
 
-### 🧪 Pengujian
-- **Black Box Testing:** 95 Skenario - 100% Passed
-- **UAT:** 90.86% Sangat Layak
+### ✨ Fitur yang Sudah Jadi
+- [x] **Auth Aman:** `session`, `csrf_token()`, `verify_csrf()`, `require_role(['admin','guru','siswa'])`
+- [x] **Dashboard 3 Role:** 
+    - Admin: Ringkasan statistik + Aktivitas Terbaru + Grafik Kehadiran
+    - Guru: Daftar Siswa Bimbingan + Validasi Jurnal
+    - Siswa: Kartu Status PKL + Presensi Hari Ini
+- [x] **Presensi Geofencing:** Validasi radius pakai fungsi `haversine_meters()` - status `valid` / `luar_radius`
+- [x] **Jurnal Harian:** Status `pending`, `approved`, `revision`
+- [x] **Helper Lengkap:** `e()` anti XSS, `flash()` notifikasi, `id_date()`, `role_label()`
 
-### 👥 Tim Pengembang
-**Kelas 55 Kelompok C - UT**
-- **Krisdianto** - PO
-- **Fandi3333** - Fullstack Dev
-- **Astrid** - UI/UX
-- **Desy** - Dokumentasi
+### 🛠️ Tech Stack
+- PHP Native 8.1+ (Strict Types)
+- MySQL / MariaDB
+- TailwindCSS (UI RuangPKL Sage Green #e8f5e9)
+- PHPMailer (di `includes/mailer.php`) - ada panduan di `SMTP-SETUP.md`
 
-### 📝 Sprint
-- Sprint 1: Auth, CRUD Kelas & Tempat PKL
-- Sprint 2: Geo-Tagging & Maps
-- Sprint 3: E-Logbook & Laporan
+### 📁 Struktur Folder monitoring-pkl-main/
+├── assets/              # CSS & JS RuangPKL
+├── config/
+│   └── config.php       # Koneksi PDO $pdo
+├── database/
+│   └── database.sql     # Import DB awal
+├── includes/
+│   ├── functions.php    # Core: e(), redirect(), require_login(), haversine_meters()
+│   └── mailer.php       # Kirim email notifikasi
+├── uploads/             # Bukti foto presensi
+├── index.php            # Halaman Login
+├── auth_action.php      # Proses login & set $_SESSION['user']
+├── dashboard.php        # 1 file untuk 3 dashboard (cek role)
+└── SMTP-SETUP.md
 
-### 📄Lisensi
-Academic Project - Universitas Terbuka 2025/2026. Tidak untuk komersial.
-Dibuat dengan ❤️ untuk Digitalisasi SMK Muhammadiyah 6 Comal.
+### 🚀 Cara Install (PHP Native - Bukan Laravel)
+1. Clone: `git clone https://github.com/Fandi3333/monitoring-pkl-main.git`
+2. Buat database `monitoring_pkl` di phpMyAdmin
+3. Import `database/database.sql`
+4. Setting koneksi DB di `config/config.php`
+5. Setting SMTP di `includes/mailer.php` (lihat `SMTP-SETUP.md`)
+6. Jalankan di XAMPP: `http://localhost/monitoring-pkl-main/`
+
+Tidak perlu `composer install` dan `php artisan` karena ini PHP Native.
+
+### 🔑 Akun Demo (dari `auth_action.php`)
+| Role | Email / Username | Password |
+| :--- | :--- | :--- |
+| Admin / Kaprog | admin@smk.sch.id | admin123 |
+| Guru Pembimbing | guru@smk.sch.id | guru123 |
+| Siswa PKL | siswa@smk.sch.id | siswa123 |
+
+### 📌 Roadmap Capstone (Tugas Kelompok)
+- [x] Base Project oleh Fandi
+- [ ] Selesaikan CRUD Tempat PKL (latitude, longitude, radius_meter, kuota)
+- [ ] Perbaiki Edit/Hapus Kelas
+- [ ] Laporan Akhir & Presentasi
+
+---
+Dibuat untuk Tugas Capstone 55 Kelompok C - 2026
+
