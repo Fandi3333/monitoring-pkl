@@ -69,30 +69,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 5000);
     });
 
-    const tabButtons = [...document.querySelectorAll('[data-auth-tab]')];
     const authPanels = [...document.querySelectorAll('[data-auth-panel]')];
-    const authTabs = document.querySelector('.auth-tabs');
     const recoveryPanels = [...document.querySelectorAll('[data-recovery-panel]')];
+    const registrationPanel = document.querySelector('[data-registration-panel]');
     const authTitle = document.querySelector('[data-auth-title]');
     const authSubtitle = document.querySelector('[data-auth-subtitle]');
-    const showAuthPanel = (selected) => {
-        if (authTabs) authTabs.hidden = false;
+    const showAuthPanel = () => {
         authPanels.forEach((panel) => {
-            panel.hidden = panel.dataset.authPanel !== selected;
+            panel.hidden = panel.dataset.authPanel !== 'login';
         });
+        if (registrationPanel) registrationPanel.hidden = true;
         recoveryPanels.forEach((panel) => {
             panel.hidden = true;
         });
-        if (authTitle) authTitle.textContent = selected === 'register' ? 'Buat akun' : 'Masuk ke akun';
-        if (authSubtitle) authSubtitle.textContent = selected === 'register'
-            ? 'Lengkapi data untuk membuat akun baru.'
-            : 'Gunakan NIP, NISN, atau username terdaftar.';
+        if (authTitle) authTitle.textContent = 'Masuk ke akun';
+        if (authSubtitle) authSubtitle.textContent = 'Guru dan siswa masuk dengan username serta kode kelas. Admin menggunakan kata sandi.';
     };
-    const showRecoveryPanel = (selected) => {
-        if (authTabs) authTabs.hidden = true;
+    const showRegistrationPanel = () => {
         authPanels.forEach((panel) => {
             panel.hidden = true;
         });
+        if (registrationPanel) registrationPanel.hidden = false;
+        recoveryPanels.forEach((panel) => {
+            panel.hidden = true;
+        });
+        if (authTitle) authTitle.textContent = 'Daftar sebagai kaprodi';
+        if (authSubtitle) authSubtitle.textContent = 'Buat akun kaprodi untuk mengelola aplikasi.';
+    };
+    const showRecoveryPanel = (selected) => {
+        authPanels.forEach((panel) => {
+            panel.hidden = true;
+        });
+        if (registrationPanel) registrationPanel.hidden = true;
         recoveryPanels.forEach((panel) => {
             panel.hidden = panel.dataset.recoveryPanel !== selected;
         });
@@ -102,42 +110,24 @@ document.addEventListener('DOMContentLoaded', () => {
             : 'Masukkan email yang terdaftar untuk menerima kode OTP.';
     };
 
-    tabButtons.forEach((button) => {
-        button.addEventListener('click', () => {
-            const selected = button.dataset.authTab;
-            tabButtons.forEach((tab) => {
-                const active = tab === button;
-                tab.classList.toggle('is-active', active);
-                tab.setAttribute('aria-selected', String(active));
-            });
-            showAuthPanel(selected);
-        });
-    });
     document.querySelector('[data-forgot-password]')?.addEventListener('click', () => showRecoveryPanel('request'));
+    document.querySelector('[data-show-registration]')?.addEventListener('click', showRegistrationPanel);
     document.querySelectorAll('[data-return-login]').forEach((button) => {
-        button.addEventListener('click', () => showAuthPanel('login'));
+        button.addEventListener('click', showAuthPanel);
+    });
+    document.querySelectorAll('[data-toggle-password]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const input = button.closest('.password-input-wrap')?.querySelector('input');
+            if (!input) return;
+            const isVisible = input.type === 'text';
+            input.type = isVisible ? 'password' : 'text';
+            button.setAttribute('aria-pressed', String(!isVisible));
+            button.setAttribute('aria-label', isVisible ? 'Tampilkan kata sandi' : 'Sembunyikan kata sandi');
+        });
     });
     document.querySelector('[data-resend-otp]')?.addEventListener('click', () => {
         document.querySelector('[data-resend-form]')?.requestSubmit();
     });
-
-    const roleSelect = document.querySelector('[data-role-select]');
-    const classLabel = document.querySelector('.register-class');
-    const classField = document.querySelector('[data-class-field]');
-    const emailLabel = document.querySelector('.register-email');
-    const emailField = document.querySelector('[data-admin-field]');
-    const updateRegistrationFields = () => {
-        if (!roleSelect) return;
-        const isAdmin = roleSelect.value === 'admin';
-        classLabel.hidden = isAdmin;
-        classField.disabled = isAdmin;
-        classField.required = !isAdmin;
-        emailLabel.hidden = !isAdmin;
-        emailField.disabled = !isAdmin;
-        emailField.required = isAdmin;
-    };
-    roleSelect?.addEventListener('change', updateRegistrationFields);
-    updateRegistrationFields();
 
     const dateOptions = { day: 'numeric', month: 'long', year: 'numeric' };
     const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -544,6 +534,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         window.addEventListener('pagehide', stopCamera);
+    });
+
+    const accountDialog = document.querySelector('[data-account-dialog]');
+    document.querySelector('[data-open-account-dialog]')?.addEventListener('click', () => {
+        if (typeof accountDialog?.showModal === 'function') {
+            accountDialog.showModal();
+            accountDialog.querySelector('input[name="nama"]')?.focus();
+        }
+    });
+    accountDialog?.querySelector('[data-close-account-dialog]')?.addEventListener('click', () => {
+        accountDialog.close();
+    });
+    accountDialog?.addEventListener('click', (event) => {
+        if (event.target === accountDialog) accountDialog.close();
     });
 
     const photoDialog = document.querySelector('[data-photo-dialog]');

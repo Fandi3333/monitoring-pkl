@@ -13,6 +13,7 @@ try {
 }
 $notice = take_flash();
 $resetPending = isset($_SESSION['password_reset_pending']);
+$registrationPending = isset($_GET['register']) && !$resetPending;
 ?>
 <!doctype html>
 <html lang="id">
@@ -38,39 +39,32 @@ $resetPending = isset($_SESSION['password_reset_pending']);
                 <a class="brand brand-mobile" href="index.php"><span class="brand-mark">R</span><span>Ruang<span class="brand-accent">PKL</span></span></a>
                 <div class="auth-heading">
                     <p class="eyebrow">SELAMAT DATANG</p>
-                    <h2 data-auth-title><?= $resetPending ? 'Atur ulang kata sandi' : 'Masuk ke akun' ?></h2>
-                    <p data-auth-subtitle><?= $resetPending ? 'Masukkan kode OTP yang dikirim ke email Anda.' : 'Gunakan NIP, NISN, atau username terdaftar.' ?></p>
+                    <h2 data-auth-title><?= $resetPending ? 'Atur ulang kata sandi' : ($registrationPending ? 'Daftar sebagai kaprodi' : 'Masuk ke akun') ?></h2>
+                    <p data-auth-subtitle><?= $resetPending ? 'Masukkan kode OTP yang dikirim ke email Anda.' : ($registrationPending ? 'Buat akun kaprodi untuk mengelola aplikasi.' : 'Guru dan siswa masuk dengan username serta kode kelas. Admin menggunakan kata sandi.') ?></p>
                 </div>
                 <?php if (!$databaseReady): ?>
                     <div class="notice notice-danger">Database belum siap. Impor <code>database/db_monitoring_pkl.sql</code> sesuai petunjuk README.</div>
                 <?php endif; ?>
                 <?php if ($notice): ?><div class="notice notice-<?= e($notice['type']) ?>" role="status" data-auto-dismiss><?= e($notice['message']) ?></div><?php endif; ?>
-                <div class="auth-tabs" role="tablist" aria-label="Autentikasi" <?= $resetPending ? 'hidden' : '' ?>>
-                    <button class="auth-tab is-active" type="button" role="tab" aria-selected="true" data-auth-tab="login">Masuk</button>
-                    <button class="auth-tab" type="button" role="tab" aria-selected="false" data-auth-tab="register">Daftar</button>
-                </div>
-                <form class="auth-form" method="post" action="auth_action.php" data-auth-panel="login" <?= $resetPending ? 'hidden' : '' ?>>
+                <form class="auth-form" method="post" action="auth_action.php" data-auth-panel="login" <?= $resetPending || $registrationPending ? 'hidden' : '' ?>>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
                     <input type="hidden" name="action" value="login">
                     <label>Username / NIP / NISN<input name="username" autocomplete="username" required autofocus></label>
-                    <label>Kata sandi<input type="password" name="password" autocomplete="current-password" required></label>
+                    <label>Kata sandi / kode kelas<input type="password" name="password" autocomplete="current-password" required></label>
+                    <button class="auth-inline-link auth-inline-link-right" type="button" data-forgot-password>Lupa kata sandi?</button>
                     <button class="button button-primary button-wide" type="submit">Masuk ke dashboard <span aria-hidden="true">→</span></button>
-                    <button class="auth-inline-link" type="button" data-forgot-password>Lupa kata sandi?</button>
+                    <button class="auth-inline-link auth-inline-link-right" type="button" data-show-registration>Daftar sebagai kaprodi?</button>
                 </form>
-                <form class="auth-form" method="post" action="auth_action.php" data-auth-panel="register" hidden>
+                <form class="auth-form" method="post" action="auth_action.php" data-registration-panel <?= $registrationPending ? '' : 'hidden' ?>>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                    <input type="hidden" name="action" value="register">
-                    <label>Daftar sebagai<select name="role" data-role-select required>
-                        <option value="" selected disabled>Pilih peran</option>
-                        <option value="admin">Admin / Ketua Jurusan</option>
-                        <option value="guru">Guru pembimbing</option><option value="siswa">Siswa PKL</option>
-                    </select></label>
-                    <label>Nama lengkap<input name="nama" autocomplete="name" maxlength="120" required></label>
-                    <label>Username / NIP / NISN<input name="username" autocomplete="username" maxlength="60" required></label>
-                    <label class="register-email" hidden>Email<input type="email" name="email" autocomplete="email" maxlength="190" data-admin-field disabled></label>
-                    <label>Kata sandi<input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
-                    <label class="register-class" hidden>Kode kelas<input name="kode_kelas" maxlength="40" data-class-field disabled></label>
-                    <button class="button button-primary button-wide" type="submit">Buat akun <span aria-hidden="true">→</span></button>
+                    <input type="hidden" name="action" value="register_admin">
+                    <label>Nama lengkap<input name="name" maxlength="120" autocomplete="name" required></label>
+                    <label>Username<input name="username" maxlength="60" pattern="[A-Za-z0-9._\-]{3,60}" autocomplete="username" required></label>
+                    <label>Email<input type="email" name="email" maxlength="190" autocomplete="email" required></label>
+                    <label>Kata sandi baru<span class="password-input-wrap"><input type="password" name="new_password" autocomplete="new-password" minlength="8" required><button class="password-visibility-toggle" type="button" data-toggle-password aria-label="Tampilkan kata sandi" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></span></label>
+                    <label>Konfirmasi sandi<span class="password-input-wrap"><input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required><button class="password-visibility-toggle" type="button" data-toggle-password aria-label="Tampilkan kata sandi" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></span></label>
+                    <button class="button button-primary button-wide" type="submit">Buat akun kaprodi</button>
+                    <button class="auth-inline-link auth-inline-link-right" type="button" data-return-login>Kembali ke masuk</button>
                 </form>
                 <form class="auth-form" method="post" action="auth_action.php" data-recovery-panel="request" hidden>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">

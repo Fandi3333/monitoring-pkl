@@ -42,6 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'change_password') {
+            if ($role !== 'admin') {
+                throw new DomainException('Akun guru dan siswa menggunakan kode kelas untuk masuk. Hubungi Admin jika perlu bantuan.');
+            }
             $currentPassword = (string) ($_POST['current_password'] ?? '');
             $newPassword = (string) ($_POST['new_password'] ?? '');
             $confirmation = (string) ($_POST['confirm_password'] ?? '');
@@ -168,6 +171,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $statement->execute([$classId]);
             flash($statement->rowCount() ? 'success' : 'danger', $statement->rowCount() ? 'Kelas PKL berhasil dihapus. Akun anggota tetap ada, tetapi tidak lagi terhubung ke kelas; presensi dan logbook kelas ikut terhapus.' : 'Kelas PKL tidak ditemukan.');
             redirect(dashboard_url('classes'));
+        }
+
+        if ($action === 'create_user' && $role === 'admin') {
+            $targetRole = (string) ($_POST['target_role'] ?? '');
+            $name = trim((string) ($_POST['nama'] ?? ''));
+            $username = trim((string) ($_POST['username'] ?? ''));
+            $classId = filter_var($_POST['class_id'] ?? null, FILTER_VALIDATE_INT);
+            $returnView = $targetRole === 'guru' ? 'teachers' : 'students';
+            $roleLabel = $targetRole === 'guru' ? 'guru' : 'siswa';
+            if (!in_array($targetRole, ['guru', 'siswa'], true) || $name === '' || mb_strlen($name) > 120 || !preg_match('/^[A-Za-z0-9._-]{3,60}$/', $username) || !$classId) {
+                throw new DomainException('Nama, username (3–60 karakter: huruf, angka, titik, garis bawah, atau tanda hubung), dan kelas wajib diisi dengan benar.');
+            }
+
+            $pdo->beginTransaction();
+            $statement = $pdo->prepare('SELECT id, nama_kelas, kode_kelas, kuota_guru, kuota_siswa FROM kelas_pkl WHERE id = ? FOR UPDATE');
+            $statement->execute([$classId]);
+            $class = $statement->fetch();
+            if (!$class) {
+                throw new DomainException('Kelas PKL yang dipilih tidak ditemukan.');
+            }
+
+            $quota = (int) $class[$targetRole === 'guru' ? 'kuota_guru' : 'kuota_siswa'];
+            $statement = $pdo->prepare('SELECT COUNT(*) FROM users WHERE kelas_id = ? AND role = ? AND aktif = 1');
+            $statement->execute([$classId, $targetRole]);
+            $activeCount = (int) $statement->fetchColumn();
+            if ($activeCount >= $quota) {
+                throw new DomainException("Kuota {$roleLabel} di kelas {$class['nama_kelas']} sudah penuh ({$activeCount}/{$quota}). Tambah kuota di menu Kelola kelas terlebih dahulu.");
+            }
+
+            $statement = $pdo->prepare('SELECT 1 FROM users WHERE username = ? LIMIT 1');
+            $statement->execute([$username]);
+            if ($statement->fetchColumn() !== false) {
+                throw new DomainException('Username sudah digunakan. Pilih username yang lain.');
+            }
+
+            $statement = $pdo->prepare('INSERT INTO users (nama, username, email, password, role, kelas_id) VALUES (?, ?, NULL, ?, ?, ?)');
+            $unusablePasswordHash = password_hash(bin2hex(random_bytes(32)), PASSWORD_DEFAULT);
+            $statement->execute([$name, $username, $unusablePasswordHash, $targetRole, $classId]);
+            $pdo->commit();
+
+            flash('success', "Akun {$roleLabel} berhasil dibuat. Username: {$username} · Kode kelas: {$class['kode_kelas']}. Sampaikan kedua informasi ini kepada pemilik akun untuk masuk.");
+            redirect(dashboard_url($returnView));
         }
 
         if ($action === 'delete_user' && $role === 'admin') {
@@ -317,7 +362,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        flash('danger', $exception->getMessage());
+        $message = $exception->getMessage();
+        flash(str_starts_with($message, 'Kuota ') ? 'warning' : 'danger', $message);
         redirect(dashboard_url($view));
     } catch (PDOException $exception) {
         if ($pdo->inTransaction()) {
@@ -486,8 +532,11 @@ if ($view === 'overview') {
             <?php endforeach; ?>
         </nav>
         <div class="sidebar-bottom">
-            <div class="sidebar-help"><span class="help-mark">i</span><div><strong>Ruang pendampingan</strong><span>PKL tercatat, langkah terarah.</span></div></div>
-            <div class="profile-mini"><span class="avatar avatar-green"><?= e(strtoupper(substr($user['nama'], 0, 1))) ?></span><span><strong><?= e($user['nama']) ?></strong><small><?= e(role_label($role)) ?></small></span><span class="profile-more">···</span></div>
+            <a class="profile-mini" href="<?= e(dashboard_url('settings') . '#account-settings') ?>" aria-label="Pengaturan akun <?= e($user['nama']) ?>">
+                <span class="avatar avatar-green"><?= e(strtoupper(substr($user['nama'], 0, 1))) ?></span>
+                <span><strong><?= e($user['nama']) ?></strong><small><?= e(role_label($role)) ?></small></span>
+                <span class="profile-more" aria-hidden="true">···</span>
+            </a>
         </div>
     </aside>
     <main class="main-area">
@@ -574,7 +623,39 @@ if ($view === 'overview') {
                 </section>
             <?php endif; ?>
 
-            <?php if (in_array($view, ['teachers', 'students'], true)): ?><section class="section-heading section-heading-list"><div><p class="eyebrow"><?= $view === 'teachers' ? 'PEMBIMBING TERDAFTAR' : 'PESERTA PKL' ?></p><h2><?= count($dataRows) ?> <?= $view === 'teachers' ? 'guru pembimbing' : 'siswa terdaftar' ?></h2></div></section><section class="table-panel"><div class="table-scroll"><table><thead><tr><th>Nama</th><th>Username</th><th>Kelas</th><th>Tempat PKL</th><?php if ($role === 'admin'): ?><th>Aksi</th><?php endif; ?></tr></thead><tbody><?php if (!$dataRows): ?><tr><td colspan="5" class="empty-cell">Belum ada data pengguna.</td></tr><?php endif; ?><?php foreach ($dataRows as $row): ?><tr><td><span class="user-cell"><span class="avatar avatar-table"><?= e(strtoupper(substr($row['nama'], 0, 1))) ?></span><strong><?= e($row['nama']) ?></strong></span></td><td><?= e($row['username']) ?></td><td><?= e($row['nama_kelas'] ?? 'Belum terhubung') ?><?php if (!empty($row['kode_kelas'])): ?><small class="cell-sub"><?= e($row['kode_kelas']) ?></small><?php endif; ?></td><td><?= e($row['nama_industri'] ?? '—') ?></td><?php if ($role === 'admin'): ?><td><form method="post" data-confirm-title="Yakin ingin menghapus akun <?= $view === 'teachers' ? 'guru' : 'siswa' ?> <?= e($row['nama']) ?>?"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_user"><input type="hidden" name="user_id" value="<?= e($row['id']) ?>"><input type="hidden" name="return_view" value="<?= e($view) ?>"><button class="icon-button delete-button" type="submit" aria-label="Hapus <?= e($row['nama']) ?>" title="Hapus pengguna">⌫</button></form></td><?php endif; ?></tr><?php endforeach; ?></tbody></table></div></section><?php endif; ?>
+            <?php if (in_array($view, ['teachers', 'students'], true)): ?>
+                <?php $accountRole = $view === 'teachers' ? 'guru' : 'siswa'; ?>
+                <section class="section-heading section-heading-list"><div><p class="eyebrow"><?= $view === 'teachers' ? 'PEMBIMBING TERDAFTAR' : 'PESERTA PKL' ?></p><h2><?= count($dataRows) ?> <?= $view === 'teachers' ? 'guru pembimbing' : 'siswa terdaftar' ?></h2></div></section>
+                <section class="table-panel"><div class="table-scroll"><table><thead><tr><th>Nama</th><th>Username</th><th>Kelas</th><th>Tempat PKL</th><?php if ($role === 'admin'): ?><th>Aksi</th><?php endif; ?></tr></thead><tbody><?php if (!$dataRows): ?><tr><td colspan="5" class="empty-cell">Belum ada data pengguna.</td></tr><?php endif; ?><?php foreach ($dataRows as $row): ?><tr><td><span class="user-cell"><span class="avatar avatar-table"><?= e(strtoupper(substr($row['nama'], 0, 1))) ?></span><strong><?= e($row['nama']) ?></strong></span></td><td><?= e($row['username']) ?></td><td><?= e($row['nama_kelas'] ?? 'Belum terhubung') ?><?php if (!empty($row['kode_kelas'])): ?><small class="cell-sub"><?= e($row['kode_kelas']) ?></small><?php endif; ?></td><td><?= e($row['nama_industri'] ?? '—') ?></td><?php if ($role === 'admin'): ?><td><form method="post" data-confirm-title="Yakin ingin menghapus akun <?= $view === 'teachers' ? 'guru' : 'siswa' ?> <?= e($row['nama']) ?>?"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_user"><input type="hidden" name="user_id" value="<?= e($row['id']) ?>"><input type="hidden" name="return_view" value="<?= e($view) ?>"><button class="icon-button delete-button" type="submit" aria-label="Hapus <?= e($row['nama']) ?>" title="Hapus pengguna">⌫</button></form></td><?php endif; ?></tr><?php endforeach; ?></tbody></table></div></section>
+                <?php if ($role === 'admin'): ?>
+                    <?php
+                    $usedQuotaKey = $view === 'teachers' ? 'jumlah_guru' : 'jumlah_siswa';
+                    $quotaKey = $view === 'teachers' ? 'kuota_guru' : 'kuota_siswa';
+                    $availableClasses = array_filter($classes, static fn (array $class): bool => (int) $class[$usedQuotaKey] < (int) $class[$quotaKey]);
+                    ?>
+                    <button class="button button-primary account-create-trigger" type="button" data-open-account-dialog aria-haspopup="dialog"><span class="account-create-plus" aria-hidden="true">+</span> Tambah <?= $view === 'teachers' ? 'guru' : 'siswa' ?></button>
+                    <dialog class="account-dialog" data-account-dialog aria-labelledby="account-dialog-title">
+                        <button class="account-dialog-close" type="button" data-close-account-dialog aria-label="Tutup">×</button>
+                        <div class="panel-heading"><span class="eyebrow"><?= $view === 'teachers' ? 'AKUN PEMBIMBING' : 'AKUN PESERTA' ?></span><h2 id="account-dialog-title">Tambah <?= $view === 'teachers' ? 'guru' : 'siswa' ?></h2><p>Kata sandi awal dibuat otomatis setelah akun berhasil dibuat.</p></div>
+                        <?php if (!$classes): ?>
+                            <div class="notice notice-warning">Buat kelas dan atur kuotanya terlebih dahulu di menu Kelola kelas.</div>
+                        <?php elseif (!$availableClasses): ?>
+                            <div class="notice notice-warning">Kuota <?= $view === 'teachers' ? 'guru' : 'siswa' ?> di semua kelas sudah penuh. Tambah kuota di menu Kelola kelas sebelum membuat akun baru.</div>
+                        <?php else: ?>
+                            <form method="post" class="stack-form">
+                                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                                <input type="hidden" name="action" value="create_user">
+                                <input type="hidden" name="target_role" value="<?= e($accountRole) ?>">
+                                <label>Nama lengkap<input name="nama" maxlength="120" autocomplete="name" required></label>
+                                <label>Kelas PKL<select name="class_id" required><option value="" selected disabled>Pilih kelas</option><?php foreach ($classes as $class): ?><?php $currentQuota = (int) $class[$usedQuotaKey]; $classQuota = (int) $class[$quotaKey]; ?><option value="<?= e($class['id']) ?>" <?= $currentQuota >= $classQuota ? 'disabled' : '' ?>><?= e($class['nama_kelas']) ?> · <?= e($currentQuota) ?>/<?= e($classQuota) ?> kuota<?= $currentQuota >= $classQuota ? ' (penuh)' : '' ?></option><?php endforeach; ?></select></label>
+                                <label>Username<input name="username" maxlength="60" pattern="[A-Za-z0-9._\-]{3,60}" autocomplete="off" required><span class="label-note">3–60 karakter: huruf, angka, titik, garis bawah, atau tanda hubung.</span></label>
+                                <p class="muted">Jika kuota penuh, tambah kuota kelas melalui menu Kelola kelas.</p>
+                                <button class="button button-primary" type="submit">Buat akun <?= $view === 'teachers' ? 'guru' : 'siswa' ?> <span>→</span></button>
+                            </form>
+                        <?php endif; ?>
+                    </dialog>
+                <?php endif; ?>
+            <?php endif; ?>
 
             <?php if ($view === 'attendance'): ?>
                 <section class="section-heading section-heading-list">
@@ -636,8 +717,8 @@ if ($view === 'overview') {
                     <p class="settings-status settings-page-status" data-settings-status role="status" aria-live="polite" hidden></p>
                 </section>
                 <section class="workspace-grid settings-security">
-                    <div class="form-panel"><div class="panel-heading"><span class="eyebrow">KEAMANAN AKUN</span><h2>Ubah kata sandi</h2><p>Gunakan kata sandi unik minimal 8 karakter. Perubahan berlaku setelah disimpan.</p></div><form method="post" class="stack-form" data-guide="Masukkan kata sandi saat ini, lalu buat kata sandi baru minimal 8 karakter dan ulangi dengan ejaan yang sama."><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="change_password"><label>Kata sandi saat ini<input type="password" name="current_password" autocomplete="current-password" required></label><label>Kata sandi baru<input type="password" name="new_password" autocomplete="new-password" minlength="8" required></label><label>Ulangi kata sandi baru<input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required></label><button class="button button-primary" type="submit">Simpan kata sandi <span>→</span></button></form></div>
-                    <div class="list-panel"><div class="panel-heading"><span class="eyebrow">AKUN AKTIF</span><h2><?= e($user['nama']) ?></h2></div><div class="location-item"><span class="location-pin">◎</span><div><strong><?= e(role_label($role)) ?></strong><p>Username: <?= e($user['username']) ?></p><small>Keluar untuk mengakhiri sesi pada perangkat ini.</small></div></div><div class="account-actions"><form method="post"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="logout"><button class="button button-logout" type="submit"><span aria-hidden="true">↪</span> Keluar dari akun</button></form><?php if ($role === 'admin'): ?><form method="post" data-confirm-title="Yakin ingin menghapus akun Admin <?= e($user['username']) ?>?"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_account"><button class="button button-danger-soft" type="submit"><span aria-hidden="true">⌫</span> Hapus akun</button></form><?php endif; ?></div></div>
+                    <?php if ($role === 'admin'): ?><div class="form-panel"><div class="panel-heading"><span class="eyebrow">KEAMANAN AKUN</span><h2>Ubah kata sandi</h2><p>Gunakan kata sandi unik minimal 8 karakter. Perubahan berlaku setelah disimpan.</p></div><form method="post" class="stack-form" data-guide="Masukkan kata sandi saat ini, lalu buat kata sandi baru minimal 8 karakter dan ulangi dengan ejaan yang sama."><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="change_password"><label>Kata sandi saat ini<input type="password" name="current_password" autocomplete="current-password" required></label><label>Kata sandi baru<input type="password" name="new_password" autocomplete="new-password" minlength="8" required></label><label>Ulangi kata sandi baru<input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required></label><button class="button button-primary" type="submit">Simpan kata sandi <span>→</span></button></form></div><?php else: ?><div class="form-panel"><div class="panel-heading"><span class="eyebrow">AKSES AKUN</span><h2>Masuk dengan kode kelas</h2><p>Guru dan siswa menggunakan username serta kode kelas untuk masuk. Hubungi Admin jika kode kelas perlu diperbarui.</p></div></div><?php endif; ?>
+                    <div class="list-panel" id="account-settings"><div class="panel-heading"><span class="eyebrow">AKUN AKTIF</span><h2><?= e($user['nama']) ?></h2></div><div class="location-item"><span class="location-pin">◎</span><div><strong><?= e(role_label($role)) ?></strong><p>Username: <?= e($user['username']) ?></p><small>Keluar untuk mengakhiri sesi pada perangkat ini.</small></div></div><div class="account-actions"><form method="post"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="logout"><button class="button button-logout" type="submit"><span aria-hidden="true">↪</span> Keluar dari akun</button></form><?php if ($role === 'admin'): ?><form method="post" data-confirm-title="Yakin ingin menghapus akun Admin <?= e($user['username']) ?>?"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="delete_account"><button class="button button-danger-soft" type="submit"><span aria-hidden="true">⌫</span> Hapus akun</button></form><?php endif; ?></div></div>
                 </section>
             <?php endif; ?>
             <?php if ($role === 'admin'): ?><dialog class="confirm-dialog" data-confirm-dialog aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-description"><header class="confirm-dialog-header"><span class="confirm-dialog-label">PERINGATAN</span></header><div class="confirm-dialog-content"><h2 id="confirm-dialog-title" data-confirm-dialog-title></h2><p class="confirm-dialog-note" id="confirm-dialog-description">Periksa kembali data yang dipilih. Penghapusan permanen tidak dapat dibatalkan.</p><div class="confirm-dialog-actions"><button class="button confirm-dialog-cancel" type="button" data-cancel-confirm>Batal</button><button class="button confirm-dialog-submit" type="button" data-submit-confirm>Ya, hapus</button></div></div></dialog><?php endif; ?>

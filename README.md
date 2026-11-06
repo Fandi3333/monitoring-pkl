@@ -54,12 +54,16 @@ Aplikasi monitoring PKL berbasis **PHP Native (PHP 8+)** untuk SMK. Fokus utama:
 
 Tidak perlu `composer install` dan `php artisan` karena ini PHP Native.
 
-### 🔑 Akun Demo (dari `auth_action.php`)
-| Role | Email / Username | Password |
-| :--- | :--- | :--- |
-| Admin / Kaprog | admin@smk.sch.id | admin123 |
-| Guru Pembimbing | guru@smk.sch.id | guru123 |
-| Siswa PKL | siswa@smk.sch.id | siswa123 |
+### 🔑 Pembuatan Akun Guru dan Siswa
+- Pendaftaran mandiri melalui halaman login tidak tersedia. Admin membuat akun dari menu **Kelola guru** atau **Kelola siswa**.
+- Admin mengisi nama lengkap, kelas PKL, dan username. Guru dan siswa masuk menggunakan username serta kode kelas yang dipilih; sampaikan kedua informasi tersebut kepada pemilik akun.
+- Kuota guru dan siswa mengikuti kuota kelas. Jika kuota penuh, tambah kuota melalui menu **Kelola kelas** sebelum membuat akun.
+- Admin tetap masuk menggunakan kata sandi akun Admin.
+
+### 🧑‍💼 Pendaftaran Kaprodi
+- Tautan **Daftar sebagai kaprodi?** pada halaman masuk membuka formulir pendaftaran dengan nama lengkap, username, email, dan kata sandi.
+- Pendaftaran terbuka: siapa pun yang dapat mengakses halaman dapat membuat akun Admin/Kaprodi. Gunakan hanya jika aplikasi memang ditujukan untuk pendaftaran publik.
+- Kata sandi minimal 8 karakter dan disimpan menggunakan `password_hash()`; login admin memverifikasinya dengan `password_verify()`.
 
 ### 📌 Roadmap Capstone (Tugas Kelompok)
 - [x] Base Project oleh Fandi
@@ -69,4 +73,3 @@ Tidak perlu `composer install` dan `php artisan` karena ini PHP Native.
 
 ---
 Dibuat untuk Tugas Capstone 55 Kelompok C - 2026
-

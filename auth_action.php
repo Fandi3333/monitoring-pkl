@@ -12,17 +12,62 @@ $action = $_POST['action'] ?? '';
 if ($action === 'login') {
     $username = trim((string) ($_POST['username'] ?? ''));
     $password = (string) ($_POST['password'] ?? '');
-    $statement = $pdo->prepare('SELECT id, nama, username, password, role, kelas_id FROM users WHERE username = ? AND aktif = 1 LIMIT 1');
+    $statement = $pdo->prepare('SELECT u.id, u.nama, u.username, u.password, u.role, u.kelas_id, k.kode_kelas FROM users u LEFT JOIN kelas_pkl k ON k.id = u.kelas_id WHERE u.username = ? AND u.aktif = 1 LIMIT 1');
     $statement->execute([$username]);
     $user = $statement->fetch();
-    if (!$user || !password_verify($password, $user['password'])) {
-        flash('danger', 'Username atau kata sandi tidak sesuai.');
+    $authenticated = false;
+    if ($user && $user['role'] === 'admin') {
+        $authenticated = password_verify($password, $user['password']);
+    } elseif ($user && in_array($user['role'], ['guru', 'siswa'], true) && is_string($user['kode_kelas'])) {
+        $enteredClassCode = strtoupper(trim($password));
+        $storedClassCode = strtoupper($user['kode_kelas']);
+        $authenticated = $enteredClassCode !== '' && hash_equals($storedClassCode, $enteredClassCode);
+    }
+    if (!$user || !$authenticated) {
+        flash('danger', 'Username atau kata sandi/kode kelas tidak sesuai.');
         redirect('index.php');
     }
     session_regenerate_id(true);
-    unset($user['password']);
+    unset($user['password'], $user['kode_kelas']);
     $_SESSION['user'] = $user;
     redirect('dashboard.php');
+}
+
+if ($action === 'register_admin') {
+    $name = trim((string) ($_POST['name'] ?? ''));
+    $username = trim((string) ($_POST['username'] ?? ''));
+    $email = trim((string) ($_POST['email'] ?? ''));
+    $newPassword = (string) ($_POST['new_password'] ?? '');
+    $confirmation = (string) ($_POST['confirm_password'] ?? '');
+
+    if ($name === '' || mb_strlen($name) > 120
+        || !preg_match('/^[A-Za-z0-9._-]{3,60}$/', $username)
+        || strlen($email) > 190 || !filter_var($email, FILTER_VALIDATE_EMAIL)
+        || strlen($newPassword) < 8 || $newPassword !== $confirmation) {
+        flash('danger', 'Periksa kembali data. Username harus 3–60 karakter, email valid, dan kata sandi minimal 8 karakter serta harus sama.');
+        redirect('index.php?register=1');
+    }
+
+    $existingAccount = $pdo->prepare('SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1');
+    $existingAccount->execute([$username, $email]);
+    if ($existingAccount->fetchColumn() !== false) {
+        flash('danger', 'Username atau email sudah digunakan. Silakan gunakan yang lain.');
+        redirect('index.php?register=1');
+    }
+
+    try {
+        $statement = $pdo->prepare('INSERT INTO users (nama, username, email, password, role, kelas_id) VALUES (?, ?, ?, ?, ?, NULL)');
+        $statement->execute([$name, $username, $email, password_hash($newPassword, PASSWORD_DEFAULT), 'admin']);
+    } catch (PDOException $exception) {
+        if ($exception->getCode() !== '23000') {
+            throw $exception;
+        }
+        flash('danger', 'Username atau email sudah digunakan. Silakan gunakan yang lain.');
+        redirect('index.php?register=1');
+    }
+
+    flash('success', 'Akun kaprodi berhasil dibuat. Silakan masuk menggunakan username dan kata sandi.');
+    redirect('index.php');
 }
 
 if ($action === 'request_password_reset' || $action === 'resend_password_reset') {
@@ -111,68 +156,5 @@ if ($action === 'reset_password') {
     redirect('index.php');
 }
 
-if ($action !== 'register') {
-    flash('danger', 'Permintaan tidak dikenali.');
-    redirect('index.php');
-}
-
-$nama = trim((string) ($_POST['nama'] ?? ''));
-$username = trim((string) ($_POST['username'] ?? ''));
-$password = (string) ($_POST['password'] ?? '');
-$role = (string) ($_POST['role'] ?? '');
-$email = trim((string) ($_POST['email'] ?? ''));
-$kodeKelas = strtoupper(trim((string) ($_POST['kode_kelas'] ?? '')));
-
-if ($nama === '' || !preg_match('/^[A-Za-z0-9._-]{3,60}$/', $username) || strlen($password) < 8 || !in_array($role, ['admin', 'guru', 'siswa'], true)) {
-    flash('danger', 'Lengkapi data dengan benar. Username 3–60 karakter dan kata sandi minimal 8 karakter.');
-    redirect('index.php');
-}
-if ($role === 'admin' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    flash('danger', 'Email admin harus valid.');
-    redirect('index.php');
-}
-
-try {
-    $statement = $pdo->prepare('SELECT 1 FROM users WHERE username = ? LIMIT 1');
-    $statement->execute([$username]);
-    if ($statement->fetchColumn() !== false) {
-        throw new DomainException('Username sudah digunakan. Gunakan username lain.');
-    }
-
-    if ($role === 'admin') {
-        $statement = $pdo->prepare('INSERT INTO users (nama, username, email, password, role, kelas_id) VALUES (?, ?, ?, ?, \'admin\', NULL)');
-        $statement->execute([$nama, $username, $email, password_hash($password, PASSWORD_DEFAULT)]);
-    } else {
-        $pdo->beginTransaction();
-        $statement = $pdo->prepare('SELECT id, kuota_guru, kuota_siswa FROM kelas_pkl WHERE kode_kelas = ? FOR UPDATE');
-        $statement->execute([$kodeKelas]);
-        $kelas = $statement->fetch();
-        if (!$kelas) {
-            throw new DomainException('Kode kelas tidak ditemukan. Periksa kembali kode dari Admin.');
-        }
-        $capacity = $role === 'guru' ? (int) $kelas['kuota_guru'] : (int) $kelas['kuota_siswa'];
-        $count = $pdo->prepare('SELECT COUNT(*) FROM users WHERE kelas_id = ? AND role = ? AND aktif = 1');
-        $count->execute([$kelas['id'], $role]);
-        if ((int) $count->fetchColumn() >= $capacity) {
-            throw new DomainException($role === 'guru' ? 'Kuota guru untuk kelas ini sudah penuh.' : 'Maaf, kuota kelas sudah penuh!');
-        }
-
-        $statement = $pdo->prepare('INSERT INTO users (nama, username, email, password, role, kelas_id) VALUES (?, ?, NULL, ?, ?, ?)');
-        $statement->execute([$nama, $username, password_hash($password, PASSWORD_DEFAULT), $role, $kelas['id']]);
-        $pdo->commit();
-    }
-
-    flash('success', 'Akun berhasil dibuat. Silakan masuk.');
-} catch (DomainException $exception) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
-    flash('danger', $exception->getMessage());
-} catch (PDOException $exception) {
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
-    }
-    $message = $exception->getCode() === '23000' ? 'Username atau email sudah digunakan.' : 'Pendaftaran gagal. Periksa koneksi dan struktur database.';
-    flash('danger', $message);
-}
+flash('danger', 'Permintaan tidak dikenali.');
 redirect('index.php');

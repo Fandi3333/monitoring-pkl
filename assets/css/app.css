@@ -60,7 +60,13 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .auth-form, .stack-form { display: grid; gap: 16px; }
 .auth-form:not([hidden]) { animation: slide-in-left .38s ease both; }
 .auth-inline-link { justify-self: center; padding: 4px 8px; border: 0; background: transparent; color: var(--green-deep); cursor: pointer; font-size: 11px; font-weight: 600; }
+.auth-inline-link-right { justify-self: end; }
 .auth-inline-link:hover { text-decoration: underline; }
+.password-input-wrap { position: relative; display: block; }
+.password-input-wrap input { padding-right: 45px; }
+.password-visibility-toggle { position: absolute; top: 50%; right: 7px; display: grid; width: 32px; height: 32px; place-items: center; padding: 0; transform: translateY(-50%); border: 0; border-radius: 4px; background: transparent; color: #718078; cursor: pointer; }
+.password-visibility-toggle:hover { background: #f2f6f3; color: var(--green-deep); }
+.password-visibility-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
 label { display: grid; gap: 7px; color: #344b42; font-size: 12px; font-weight: 600; }
 input, textarea, select { width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #dfe7e2; border-radius: 5px; background: #fff; color: var(--ink); outline: none; transition: border-color .18s, box-shadow .18s; }
 input::placeholder, textarea::placeholder { color: #a6b0ab; }
@@ -88,11 +94,7 @@ input[type=file]::file-selector-button { margin-right: 10px; padding: 7px 10px; 
 .nav-link.is-active .nav-icon { color: var(--green); }
 .nav-arrow { margin-left: auto; color: #72a98c; font-size: 18px; }
 .sidebar-bottom { margin-top: auto; }
-.sidebar-help { display: flex; gap: 10px; margin: 0 5px 15px; padding: 13px 10px; border: 1px solid #e5eee8; border-radius: 5px; background: #f7faf8; }
-.help-mark { display: grid; width: 23px; height: 23px; flex: 0 0 23px; place-items: center; border-radius: 50%; background: #dff0e4; color: var(--green); font: 700 12px 'Manrope', sans-serif; }
-.sidebar-help div { display: grid; gap: 4px; }
-.sidebar-help strong { font-size: 10px; }
-.sidebar-help span:last-child { color: var(--muted); font-size: 9px; }
+
 .settings-page-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 20px; }
 .settings-panel { display: flex; min-width: 0; min-height: 112px; align-items: center; justify-content: space-between; gap: 24px; }
 .settings-panel .panel-heading { margin: 0; }
@@ -231,6 +233,14 @@ td strong { color: #334b40; font-weight: 600; }
 .capacity-track span { display: block; height: 100%; border-radius: inherit; background: #75b78b; }
 .section-heading-list { margin: 3px 0 17px; }
 .user-cell { display: flex; align-items: center; gap: 9px; }
+.account-create-trigger { width: 100%; margin: 0 0 15px; animation: slide-in-left .55s .18s cubic-bezier(.2, .65, .3, 1) both; }
+.account-create-plus { display: inline-grid; width: 22px; height: 22px; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-size: 17px; font-weight: 400; line-height: 1; }
+.account-dialog { position: fixed; width: min(460px, calc(100% - 32px)); max-height: min(680px, calc(100% - 32px)); padding: 27px; overflow: auto; border: 1px solid #e3ebe5; border-radius: 8px; background: #fff; color: var(--ink); box-shadow: 0 24px 75px rgba(0, 0, 0, .24); }
+.account-dialog::backdrop { background: rgba(16, 29, 21, .58); backdrop-filter: blur(3px); }
+.account-dialog .panel-heading { padding-right: 20px; }
+.account-dialog .stack-form { margin-top: 20px; }
+.account-dialog .stack-form .muted { margin: 0; font-size: 10px; line-height: 1.55; }
+.account-dialog-close { position: absolute; top: 10px; right: 12px; display: grid; width: 30px; height: 30px; place-items: center; border: 0; border-radius: 50%; background: #eff4f0; color: var(--ink); cursor: pointer; font-size: 22px; line-height: 1; }
 .icon-button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #e3eae5; border-radius: 5px; background: white; color: #62756a; cursor: pointer; }
 .icon-button:hover { border-color: #bfd9c7; color: var(--green-deep); }
 .delete-button { color: #b8645f; font-size: 16px; }
@@ -374,14 +384,12 @@ body.app-page[data-theme=dark] .clock-block,
 body.app-page[data-theme=dark] .welcome-row .muted {
     color: #a5b7ac;
 }
-body.app-page[data-theme=dark] .sidebar-help,
 body.app-page[data-theme=dark] .class-banner,
 body.app-page[data-theme=dark] .attendance-panel,
 body.app-page[data-theme=dark] .form-guide {
     border-color: #344d3e;
     background: #22372b;
 }
-body.app-page[data-theme=dark] .sidebar-help strong,
 body.app-page[data-theme=dark] .profile-mini strong,
 body.app-page[data-theme=dark] .breadcrumb strong,
 body.app-page[data-theme=dark] .welcome-row h1,
@@ -412,6 +420,14 @@ body.app-page[data-theme=dark] select,
 body.app-page[data-theme=dark] .icon-button {
     border-color: #40564a;
     background: #17271f;
+    color: #e1eee7;
+}
+body.app-page[data-theme=dark] .account-dialog {
+    border-color: var(--line);
+    background: var(--paper);
+}
+body.app-page[data-theme=dark] .account-dialog-close {
+    background: #294235;
     color: #e1eee7;
 }
 body.app-page[data-theme=dark] input::placeholder,
