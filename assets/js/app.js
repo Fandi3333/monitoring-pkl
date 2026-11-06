@@ -82,8 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
         recoveryPanels.forEach((panel) => {
             panel.hidden = true;
         });
-        if (authTitle) authTitle.textContent = 'Masuk ke akun';
-        if (authSubtitle) authSubtitle.textContent = 'Guru dan siswa masuk dengan username serta kode kelas. Admin menggunakan kata sandi.';
+        if (authTitle) authTitle.textContent = 'Login';
+        if (authSubtitle) authSubtitle.textContent = '';
     };
     const showRegistrationPanel = () => {
         authPanels.forEach((panel) => {
@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             panel.hidden = true;
         });
         if (authTitle) authTitle.textContent = 'Daftar sebagai kaprodi';
-        if (authSubtitle) authSubtitle.textContent = 'Buat akun kaprodi untuk mengelola aplikasi.';
+        if (authSubtitle) authSubtitle.textContent = '';
     };
     const showRecoveryPanel = (selected) => {
         authPanels.forEach((panel) => {

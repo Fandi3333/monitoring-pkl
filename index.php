@@ -39,8 +39,8 @@ $registrationPending = isset($_GET['register']) && !$resetPending;
                 <a class="brand brand-mobile" href="index.php"><span class="brand-mark">R</span><span>Ruang<span class="brand-accent">PKL</span></span></a>
                 <div class="auth-heading">
                     <p class="eyebrow">SELAMAT DATANG</p>
-                    <h2 data-auth-title><?= $resetPending ? 'Atur ulang kata sandi' : ($registrationPending ? 'Daftar sebagai kaprodi' : 'Masuk ke akun') ?></h2>
-                    <p data-auth-subtitle><?= $resetPending ? 'Masukkan kode OTP yang dikirim ke email Anda.' : ($registrationPending ? 'Buat akun kaprodi untuk mengelola aplikasi.' : 'Guru dan siswa masuk dengan username serta kode kelas. Admin menggunakan kata sandi.') ?></p>
+                    <h2 data-auth-title><?= $resetPending ? 'Atur ulang kata sandi' : ($registrationPending ? 'Daftar sebagai kaprodi' : 'Login') ?></h2>
+                    <p data-auth-subtitle><?= $resetPending ? 'Masukkan kode OTP yang dikirim ke email Anda.' : '' ?></p>
                 </div>
                 <?php if (!$databaseReady): ?>
                     <div class="notice notice-danger">Database belum siap. Impor <code>database/db_monitoring_pkl.sql</code> sesuai petunjuk README.</div>
@@ -64,7 +64,7 @@ $registrationPending = isset($_GET['register']) && !$resetPending;
                     <label>Kata sandi baru<span class="password-input-wrap"><input type="password" name="new_password" autocomplete="new-password" minlength="8" required><button class="password-visibility-toggle" type="button" data-toggle-password aria-label="Tampilkan kata sandi" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></span></label>
                     <label>Konfirmasi sandi<span class="password-input-wrap"><input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required><button class="password-visibility-toggle" type="button" data-toggle-password aria-label="Tampilkan kata sandi" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></span></label>
                     <button class="button button-primary button-wide" type="submit">Buat akun kaprodi</button>
-                    <button class="auth-inline-link auth-inline-link-right" type="button" data-return-login>Kembali ke masuk</button>
+                    <button class="auth-inline-link auth-inline-link-right" type="button" data-return-login>Kembali</button>
                 </form>
                 <form class="auth-form" method="post" action="auth_action.php" data-recovery-panel="request" hidden>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
