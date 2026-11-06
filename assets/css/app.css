@@ -134,7 +134,7 @@ input[type=file]::file-selector-button { margin-right: 10px; padding: 7px 10px; 
 .confirm-dialog-header { display: flex; min-height: 42px; align-items: center; padding: 0 25px; background: #e6f3ec; }
 .confirm-dialog-label { color: #19352e; font-size: 10px; font-weight: 700; letter-spacing: 1.1px; }
 .confirm-dialog-content { padding: 23px 25px 25px; }
-.confirm-dialog h2 { margin: 0 0 10px; color: var(--ink); font: 700 17px/1.45 'Manrope', sans-serif; }
+.confirm-dialog h2 { margin: 0 0 10px; color: #176647; font: 700 17px/1.45 'Manrope', sans-serif; }
 .confirm-dialog-note { margin: 0; padding-top: 11px; border-top: 1px solid #edf1ee; color: #718078; font-size: 12px; line-height: 1.65; }
 .confirm-dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
 .confirm-dialog-cancel { border-color: #cde8d8; background: #eaf5ee; color: #176647; }
