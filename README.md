@@ -63,7 +63,7 @@ Tidak perlu `composer install` dan `php artisan` karena ini PHP Native.
 
 ### 📌 Roadmap Capstone (Tugas Kelompok)
 - [x] Base Project oleh Fandi
-- [ ] Selesaikan CRUD Tempat PKL (latitude, longitude, radius_meter, kuota)
+- [x] Selesaikan CRUD Tempat PKL (latitude, longitude, radius_meter, kuota) oleh Krisdianto
 - [ ] Perbaiki Edit/Hapus Kelas
 - [ ] Laporan Akhir & Presentasi
 
