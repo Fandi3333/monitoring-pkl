@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         recoveryPanels.forEach((panel) => {
             panel.hidden = true;
         });
-        if (authTitle) authTitle.textContent = 'Daftar sebagai kaprodi';
+        if (authTitle) authTitle.textContent = 'Daftar sebagai kaprog';
         if (authSubtitle) authSubtitle.textContent = '';
     };
     const showRecoveryPanel = (selected) => {

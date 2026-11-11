@@ -39,7 +39,7 @@ $registrationPending = isset($_GET['register']) && !$resetPending;
                 <a class="brand brand-mobile" href="index.php"><span class="brand-mark">R</span><span>Ruang<span class="brand-accent">PKL</span></span></a>
                 <div class="auth-heading">
                     <p class="eyebrow">SELAMAT DATANG</p>
-                    <h2 data-auth-title><?= $resetPending ? 'Atur ulang kata sandi' : ($registrationPending ? 'Daftar sebagai kaprodi' : 'Login') ?></h2>
+                    <h2 data-auth-title><?= $resetPending ? 'Atur ulang kata sandi' : ($registrationPending ? 'Daftar sebagai kaprog' : 'Login') ?></h2>
                     <p data-auth-subtitle><?= $resetPending ? 'Masukkan kode OTP yang dikirim ke email Anda.' : '' ?></p>
                 </div>
                 <?php if (!$databaseReady): ?>
@@ -53,7 +53,7 @@ $registrationPending = isset($_GET['register']) && !$resetPending;
                     <label>Kata sandi / kode kelas<input type="password" name="password" autocomplete="current-password" required></label>
                     <button class="auth-inline-link auth-inline-link-right" type="button" data-forgot-password>Lupa kata sandi?</button>
                     <button class="button button-primary button-wide" type="submit">Masuk ke dashboard <span aria-hidden="true">→</span></button>
-                    <button class="auth-inline-link auth-inline-link-right" type="button" data-show-registration>Daftar sebagai kaprodi?</button>
+                    <button class="auth-inline-link auth-inline-link-right" type="button" data-show-registration>Daftar sebagai kaprog?</button>
                 </form>
                 <form class="auth-form" method="post" action="auth_action.php" data-registration-panel <?= $registrationPending ? '' : 'hidden' ?>>
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
@@ -63,7 +63,7 @@ $registrationPending = isset($_GET['register']) && !$resetPending;
                     <label>Email<input type="email" name="email" maxlength="190" autocomplete="email" required></label>
                     <label>Kata sandi baru<span class="password-input-wrap"><input type="password" name="new_password" autocomplete="new-password" minlength="8" required><button class="password-visibility-toggle" type="button" data-toggle-password aria-label="Tampilkan kata sandi" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></span></label>
                     <label>Konfirmasi sandi<span class="password-input-wrap"><input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required><button class="password-visibility-toggle" type="button" data-toggle-password aria-label="Tampilkan kata sandi" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></span></label>
-                    <button class="button button-primary button-wide" type="submit">Buat akun kaprodi</button>
+                    <button class="button button-primary button-wide" type="submit">Buat akun kaprog</button>
                     <button class="auth-inline-link auth-inline-link-right" type="button" data-return-login>Kembali</button>
                 </form>
                 <form class="auth-form" method="post" action="auth_action.php" data-recovery-panel="request" hidden>
